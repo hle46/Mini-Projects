@@ -1,14 +1,33 @@
+/******************************************************************************
+ *  Compilation: make
+ *  Execution: UF < input.txt
+ *  Data files: tinyUF.txt mediumUF.txt largeUF.txt
+ *  Implementation of Union Find data structure
+ *  This implementation is based on weighted quick union with path compression
+ *  This implementation supports the union and find operations, along with
+ *  methods for determining whether two sites are in the same component and
+ *  the total number of components.
+ *  % UF < tinyUF.txt
+ *  4 3
+ *  3 8
+ *  6 5
+ *  9 4
+ *  2 1
+ *  5 0
+ *  7 2
+ *  6 1
+ *  2 components
+ *  History:
+ *  11-29-15: adapted from http://algs4.cs.princeton.edu/15uf/UF.java.html
+ ******************************************************************************/
 #include <iostream>
 #include <fstream>
 #include <vector>
 
-/* Union Find data structure
- * Weighted quick union with path compression
- * The class represents a union-find data structure.
- * It supports the union and find operations, along with methods for determining
- * whether two sites are in the same component and the total number of components
- * 
- */
+using std::vector;
+using std::cout;
+using std::cin;
+
 class UF {
 public:
   UF(int n): parent(n), sz(n), count{n} {
@@ -46,28 +65,20 @@ public:
     --count;
   }
 private:
-  std::vector<int> parent;
-  std::vector<int> sz;
+  vector<int> parent;
+  vector<int> sz;
   int count;
 };
 
-int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    std::cout << "Usage: " << argv[0] << " file" << "\n";
-    exit(-1);
-  }
-  std::ifstream ifs(argv[1], std::ifstream::in);
-  if (!ifs.is_open()) {
-    std::cout << "Cannot open file \n";
-    exit(-1);
-  }
+int main() {
   int n, p, q;
-  ifs >> n;
+  cin >> n;
   UF uf(n);
-  while ((ifs >> p) && (ifs >> q)) {
+  while ((cin >> p) && (cin >> q)) {
     if (uf.connected(p, q)) continue;
     uf.join(p, q);
+    cout << p << " " << q << "\n";
   }
-  std::cout << uf.getCount() << " components\n";
+  cout << uf.getCount() << " components\n";
   return 0;
 }
