@@ -10,12 +10,11 @@ template <typename K, typename V> struct Node {
 };
 
 template <typename K, typename V> class BST {
-private:
-  Node<K, V> *root;
-
 public:
   BST() : root{nullptr} {}
-
+  ~BST() {
+    cleanup(root);
+  }
   // Return true if this symbol table is empty.
   bool isEmpty() { return size() == 0; }
 
@@ -42,7 +41,35 @@ public:
   // specified key.
   void put(K key, V val) { root = put(root, key, val); }
 
+  // Return the node contains the smallest key
+  Node<K, V> *min() {
+    if (isEmpty()) { return nullptr; }
+    return min(root);
+  }
+
+  // Return the node contains the smallest key
+  Node<K, V> *max() {
+    if (isEmpty()) { return nullptr; }
+    return max(root);
+  }
+
+  // Does this binary tree satisfy symmetric order?
+  bool isBST() {
+    return isBST(root, nullptr, nullptr);
+  }
+
 private:
+  Node<K, V> *root;
+
+  void cleanup(Node<K, V> *node) {
+    if (node == nullptr) {
+      return;
+    }
+    cleanup(node->left);
+    cleanup(node->right);
+    delete node;
+  }
+
   Node<K, V> *get(Node<K, V> *x, K key) {
     if (x == nullptr)
       return nullptr;
@@ -69,6 +96,23 @@ private:
     x->N = 1 + size(x->left) + size(x->right);
     return x;
   }
+
+  Node<K, V> *min(Node<K, V> *x) {
+    if (x->left == nullptr) { return x; }
+    else { return min(x->left); }
+  }
+
+  Node<K, V> *max(Node<K, V> *x) {
+    if (x->right == nullptr) { return x; }
+    else { return min(x->right); }
+  }
+
+  bool isBST(Node<K, V> *x, Node<K, V> *node_min, Node<K, V> *node_max) {
+    if (x == nullptr) { return true; }
+    if (node_min != nullptr && x->key <= node_min->key) { return false; }
+    if (node_max != nullptr && x->key >= node_max->key) { return false; }
+    return isBST(x->left, node_min, x) && isBST(x->right, x, node_max);
+  }
 };
 
 int main() {
@@ -78,5 +122,6 @@ int main() {
   while (cin >> c) {
     bst.put(c, count++);
   }
+  cout << bst.isBST() << "\n";
   return 0;
 }
