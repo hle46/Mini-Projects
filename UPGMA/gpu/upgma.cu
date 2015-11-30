@@ -1,10 +1,12 @@
 #include <iostream>
 #include <algorithm>
+#include <vector>
 #include <cuda.h>
 #include <cuda_runtime.h>
 
 using std::swap;
 using std::cout;
+using std::vector;
 
 #define BLOCK_SIZE 128
 #define CHECK(call)                                                            \
@@ -191,10 +193,15 @@ public:
     int n_out_level1 = ceil((float)n_out_level0 / (BLOCK_SIZE * 8));
 
     // Allocate host variables
-    h_val_level1 = (float *)malloc(sizeof(float) * n_out_level1);
-    h_idx_level1 = (int *)malloc(sizeof(int) * n_out_level1);
+    // Result values after level 1 reduction for final reduction
+    float *h_val_level1 = (float *)malloc(sizeof(float) * n_out_level1);
+    // Result indexes after level 1 reduction for final reduction
+    int *h_idx_level1 = (int *)malloc(sizeof(int) * n_out_level1);
 
     // Allocate device variables
+    float *d_mat;                       // Device matrix
+    float *d_val_level0, *d_val_level1; // Device result values
+    int *d_idx_level0, *d_idx_level1;   // Device index values
     CHECK(cudaMalloc((void **)&d_mat, sizeof(float) * n));
     CHECK(cudaMalloc((void **)&d_val_level0, sizeof(float) * n_out_level0));
     CHECK(cudaMalloc((void **)&d_idx_level0, sizeof(int) * n_out_level0));
@@ -204,7 +211,7 @@ public:
     // Copy from host to device
     CHECK(cudaMemcpy(d_mat, h_mat, sizeof(float) * n, cudaMemcpyHostToDevice));
 
-    nodes = new Node *[num_seqs];
+    vector<Node *> nodes(num_seqs);
     for (int i = 0; i < num_seqs; ++i) {
       nodes[i] = new Node(1, 0.0f, nullptr, nullptr, 0.0f, 0.0f);
     }
@@ -242,7 +249,7 @@ public:
       if (idx1 > idx2) {
         swap(idx1, idx2);
       }
-     
+
       update<<<num_seqs, BLOCK_SIZE>>>(d_mat, num_seqs, idx1, idx2,
                                        nodes[idx1]->num_nodes,
                                        nodes[idx2]->num_nodes);
@@ -258,22 +265,20 @@ public:
 
       CHECK(cudaDeviceSynchronize());
     }
-  }
 
-  ~UPGMA() {
-    delete[] nodes;
-    // Free device
+    // Free device memory
     CHECK(cudaFree(d_mat));
     CHECK(cudaFree(d_val_level0));
     CHECK(cudaFree(d_idx_level0));
     CHECK(cudaFree(d_val_level1));
     CHECK(cudaFree(d_idx_level1));
 
-    // Free host
+    // Free host memory
     free(h_val_level1);
     free(h_idx_level1);
-    cleanup(root);
   }
+
+  ~UPGMA() { cleanup(root); }
 
   void print() {
     print(root);
@@ -282,17 +287,7 @@ public:
 
 private:
   float *h_mat;
-  float *h_val_level1; // Store result values after level 1 reduction for final
-                       // reduction
-  int *h_idx_level1;   // Store result indexes after level 1 reduction for final
-                       // resuction
-
-  float *d_mat;                       // Device matrix
-  float *d_val_level0, *d_val_level1; // Device result values
-  int *d_idx_level0, *d_idx_level1;   // Device index values
-
   int num_seqs;
-  Node **nodes;
   Node *root;
 
   void cleanup(Node *node) {
@@ -318,7 +313,6 @@ private:
 };
 
 int main() {
-  /*
   const int num_seqs = 7;
   float h_a[num_seqs][num_seqs]{
       {INFINITY, 19.0f, 27.0f, 8.0f, 33.0f, 18.0f, 13.0f},
@@ -327,16 +321,14 @@ int main() {
       {8.0f, 18.0f, 26.0f, INFINITY, 31.0f, 17.0f, 14.0f},
       {33.0f, 36.0f, 41.0f, 31.0f, INFINITY, 35.0f, 28.0f},
       {18.0f, 1.0f, 32.0f, 17.0f, 35.0f, INFINITY, 12.0f},
-      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}}; */
+      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};
 
+  /*
   const int num_seqs = 6;
   float h_a[num_seqs][num_seqs]{
-      {INFINITY, 2, 4, 6, 6, 8}, 
-      {2, INFINITY, 4, 6, 6, 8},
-      {4, 4, INFINITY, 6, 6, 8}, 
-      {6, 6, 6, INFINITY, 4, 8},
-      {6, 6, 6, 4, INFINITY, 8}, 
-      {8, 8, 8, 8, 8, INFINITY}};
+      {INFINITY, 2, 4, 6, 6, 8}, {2, INFINITY, 4, 6, 6, 8},
+      {4, 4, INFINITY, 6, 6, 8}, {6, 6, 6, INFINITY, 4, 8},
+      {6, 6, 6, 4, INFINITY, 8}, {8, 8, 8, 8, 8, INFINITY}}; */
 
   UPGMA upgma((float *)h_a, num_seqs);
   upgma.print();

@@ -1,8 +1,10 @@
 #include <iostream>
 #include <cmath>
-
+#include <vector>
 using std::swap;
 using std::cout;
+using std::vector;
+
 struct Node {
   int num_nodes;          // number of nodes in the subtree
   Node *left;             // left subtree
@@ -20,10 +22,8 @@ struct Node {
 
 class UPGMA {
 public:
-  UPGMA(float *_mat, int _num_seqs) {
-    mat = _mat;
-    num_seqs = _num_seqs;
-    nodes = new Node *[num_seqs];
+  UPGMA(float *_mat, int _num_seqs): mat{_mat}, num_seqs{_num_seqs} {
+    vector<Node *> nodes(num_seqs); 
     for (int i = 0; i < num_seqs; ++i) {
       nodes[i] = new Node(1, 0.0f, nullptr, nullptr, 0.0f, 0.0f);
     }
@@ -46,8 +46,7 @@ public:
     }
   }
 
-  ~UPGMA() {
-    delete[] nodes;
+  ~UPGMA() { 
     cleanup(root);
   }
 
@@ -59,7 +58,6 @@ public:
 private:
   float *mat;
   int num_seqs;
-  Node **nodes;
   Node *root;
   int getMinIdx() {
     int n = num_seqs * num_seqs;
@@ -114,7 +112,7 @@ private:
 };
 
 int main() {
-  /*
+  
   const int num_seqs = 7;
   float a[num_seqs][num_seqs]{
       {INFINITY, 19.0f, 27.0f, 8.0f, 33.0f, 18.0f, 13.0f},
@@ -123,9 +121,9 @@ int main() {
       {8.0f, 18.0f, 26.0f, INFINITY, 31.0f, 17.0f, 14.0f},
       {33.0f, 36.0f, 41.0f, 31.0f, INFINITY, 35.0f, 28.0f},
       {18.0f, 1.0f, 32.0f, 17.0f, 35.0f, INFINITY, 12.0f},
-      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};*/
+      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};
 
- 
+  /*
   const int num_seqs = 6;
   float a[num_seqs][num_seqs]{
       {INFINITY, 2, 4, 6, 6, 8}, 
@@ -133,7 +131,7 @@ int main() {
       {4, 4, INFINITY, 6, 6, 8}, 
       {6, 6, 6, INFINITY, 4, 8},
       {6, 6, 6, 4, INFINITY, 8}, 
-      {8, 8, 8, 8, 8, INFINITY}}; 
+      {8, 8, 8, 8, 8, INFINITY}};*/
 
   UPGMA upgma((float *)a, num_seqs);
   upgma.print();
