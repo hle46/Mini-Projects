@@ -1,18 +1,18 @@
-CC = clang++
+CC = g++
 CFLAGS = -O3 -c -Wall -Wextra -std=c++11
 LDFLAGS =
-SRCS = PatternCount.cpp
+SRCS = upgma.cpp
 OBJS = $(SRCS:.cpp=.o)
 
-all: PatternCount
+all: upgma
 
-PatternCount: PatternCount.o
+upgma: upgma.o
 	$(CC) $(LDFLAGS) -o $@ $<
 
 %.o: %.cpp
 	$(CC) $(CFLAGS) -o $@ $<
 
 clean:
-	rm -fr *.o PatternCount 
+	rm -fr *.o upgma 
 
 .PHONY: all clean 

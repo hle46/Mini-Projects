@@ -1,5 +1,5 @@
 CC = clang++
-CFLAGS =-c -Wall -Wextra -std=c++11
+CFLAGS = -O3 -c -Wall -Wextra -std=c++11
 LDFLAGS =
 SRCS = UF.cpp
 OBJS = $(SRCS:.cpp=.o)
