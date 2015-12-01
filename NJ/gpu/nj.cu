@@ -123,7 +123,6 @@ __global__ void sum_level1(float *input, int n_e, int n_b, float *output) {
   for (int j = 0; j < n_b; ++j) {
     val += input[i + j * n_e];
   }
-  printf("i: %d, val: %f\n", i, val);
   output[i] = val;
 }
 
@@ -148,23 +147,165 @@ __global__ void calculate_q(float *mat, float *s, int n, int remain, float *q) {
   float val = mat[i * n + j];
   q[i * n + j] =
       isinf(val) ? INFINITY : ((remain - 2) * val - smem_i[ty] - smem_j[tx]);
-  printf("i: %d, j: %d, q: %f\n", i, j, q[i * n + j]);
 }
 
-__global__ void update(float *mat, int n, int idx1, int idx2, int num_nodes1,
-                       int num_nodes2) {
+__global__ void getMin(float *input, int *input_idx, int n, float *output_val,
+                       int *output_idx) {
+  __shared__ float smem_val[BLOCK_SIZE];
+  __shared__ int smem_idx[BLOCK_SIZE];
+
+  int tx = threadIdx.x;
+  int bx = blockIdx.x;
+  int i = tx + bx * BLOCK_SIZE * 8;
+
+  float min_val = INFINITY;
+  int min_idx = i;
+
+  if (i < n) {
+    float a1, a2, a3, a4, a5, a6, a7, a8;
+    a1 = input[i];
+
+    a2 = (i + BLOCK_SIZE) < n ? input[i + BLOCK_SIZE] : INFINITY;
+
+    a3 = (i + 2 * BLOCK_SIZE) < n ? input[i + 2 * BLOCK_SIZE] : INFINITY;
+
+    a4 = (i + 3 * BLOCK_SIZE) < n ? input[i + 3 * BLOCK_SIZE] : INFINITY;
+
+    a5 = (i + 4 * BLOCK_SIZE) < n ? input[i + 4 * BLOCK_SIZE] : INFINITY;
+
+    a6 = (i + 5 * BLOCK_SIZE) < n ? input[i + 5 * BLOCK_SIZE] : INFINITY;
+
+    a7 = (i + 6 * BLOCK_SIZE) < n ? input[i + 6 * BLOCK_SIZE] : INFINITY;
+
+    a8 = (i + 7 * BLOCK_SIZE) < n ? input[i + 7 * BLOCK_SIZE] : INFINITY;
+
+    min_val = a1;
+    min_idx = i;
+    if (a2 < min_val) {
+      min_val = a2;
+      min_idx = i + BLOCK_SIZE;
+    }
+    if (a3 < min_val) {
+      min_val = a3;
+      min_idx = i + 2 * BLOCK_SIZE;
+    }
+    if (a4 < min_val) {
+      min_val = a4;
+      min_idx = i + 3 * BLOCK_SIZE;
+    }
+    if (a5 < min_val) {
+      min_val = a5;
+      min_idx = i + 4 * BLOCK_SIZE;
+    }
+    if (a6 < min_val) {
+      min_val = a6;
+      min_idx = i + 5 * BLOCK_SIZE;
+    }
+    if (a7 < min_val) {
+      min_val = a7;
+      min_idx = i + 6 * BLOCK_SIZE;
+    }
+    if (a8 < min_val) {
+      min_val = a8;
+      min_idx = i + 7 * BLOCK_SIZE;
+    }
+  }
+
+  smem_val[tx] = min_val;
+  smem_idx[tx] = min_idx;
+  __syncthreads();
+
+  // in-place reduction in shared memory
+  if (blockDim.x >= 1024 && tx < 512 && smem_val[tx + 512] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 512];
+    smem_idx[tx] = min_idx = smem_idx[tx + 512];
+  }
+  __syncthreads();
+
+  if (blockDim.x >= 512 && tx < 256 && smem_val[tx + 256] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 256];
+    smem_idx[tx] = min_idx = smem_idx[tx + 256];
+  }
+  __syncthreads();
+
+  if (blockDim.x >= 256 && tx < 128 && smem_val[tx + 128] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 128];
+    smem_idx[tx] = min_idx = smem_idx[tx + 128];
+  }
+  __syncthreads();
+
+  if (blockDim.x >= 128 && tx < 64 && smem_val[tx + 64] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 64];
+    smem_idx[tx] = min_idx = smem_idx[tx + 64];
+  }
+  __syncthreads();
+
+  // unrolling warp
+  if (tx < 32) {
+    volatile float *vsmem_val = smem_val;
+    volatile int *vsmem_idx = smem_idx;
+    if (vsmem_val[tx + 32] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 32];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 32];
+    }
+    if (vsmem_val[tx + 16] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 16];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 16];
+    }
+    if (vsmem_val[tx + 8] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 8];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 8];
+    }
+    if (vsmem_val[tx + 4] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 4];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 4];
+    }
+    if (vsmem_val[tx + 2] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 2];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 2];
+    }
+    if (vsmem_val[tx + 1] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 1];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 1];
+    }
+  }
+
+  if (tx == 0) {
+    output_val[bx] = min_val;
+    output_idx[bx] = (input_idx == nullptr) ? min_idx : input_idx[min_idx];
+  }
+}
+
+/*
+ void update(int idx1, int idx2) {
+    float d = h_mat[num_seqs * idx1 + idx2];
+    for (int i = 0; i < num_seqs; ++i) {
+      float val = h_mat[num_seqs * idx1 + i];
+      if (isinf(val)) {
+        continue;
+      }
+      float new_val = (val + h_mat[num_seqs * idx2 + i] - d) / 2;
+      h_mat[num_seqs * idx1 + i] = new_val;
+      h_mat[num_seqs * idx2 + i] = INFINITY;
+      h_mat[num_seqs * i + idx1] = new_val;
+      h_mat[num_seqs * i + idx2] = INFINITY;
+    }
+  }
+*/
+
+__global__ void update(float *mat, int n, int idx1, int idx2) {
   int tx = threadIdx.x;
   int i = tx + blockDim.x * blockIdx.x;
   if (i >= n) {
     return;
   }
+  float d = mat[n * idx1 + idx2];
   float val = mat[n * idx1 + i];
   if (isinf(val)) {
     return;
   }
-  int total_nodes = num_nodes1 + num_nodes2;
   float new_val =
-      (val * num_nodes1 + mat[n * idx2 + i] * num_nodes2) / total_nodes;
+    (val + mat[n * idx2 + i] - d) / 2.0;
   mat[n * idx1 + i] = new_val;
   mat[n * idx2 + i] = INFINITY;
   mat[n * i + idx1] = new_val;
@@ -183,20 +324,34 @@ public:
     // number of blocks to calculate a row
     int n_blocks_per_row = ceil(num_seqs / (float)(BLOCK_SIZE * 8));
     int n_out = n_blocks_per_row * num_seqs;
+    
+    int n_out_level0 = ceil((float)n / (BLOCK_SIZE * 8));
+    int n_out_level1 = ceil((float)n_out_level0 / (BLOCK_SIZE * 8));
+
+    // Allocate host variables
+    // Result values after level 1 reduction for final reduction
+    float *h_val_level1 = (float *)malloc(sizeof(float) * n_out_level1);
+    // Result indexes after level 1 reduction for final reduction
+    int *h_idx_level1 = (int *)malloc(sizeof(int) * n_out_level1);
 
     // Allocate device variables
     float *d_mat;                   // Device matrix
     float *d_q;                     // Device q matrix
     float *d_s_level0, *d_s_level1; // Device s matrix
+    float *d_val_level0, *d_val_level1; // Device min result values
+    int *d_idx_level0, *d_idx_level1;   // Device min index values
     CHECK(cudaMalloc((void **)&d_mat, sizeof(float) * n));
     CHECK(cudaMalloc((void **)&d_q, sizeof(float) * n));
     CHECK(cudaMalloc((void **)&d_s_level0, sizeof(float) * n_out));
     CHECK(cudaMalloc((void **)&d_s_level1, sizeof(float) * num_seqs));
+    CHECK(cudaMalloc((void **)&d_val_level0, sizeof(float) * n_out_level0));
+    CHECK(cudaMalloc((void **)&d_idx_level0, sizeof(int) * n_out_level0));
+    CHECK(cudaMalloc((void **)&d_val_level1, sizeof(float) * n_out_level1));
+    CHECK(cudaMalloc((void **)&d_idx_level1, sizeof(int) * n_out_level1));
 
     CHECK(cudaMemcpy(d_mat, h_mat, sizeof(float) * n, cudaMemcpyHostToDevice));
 
     float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
-    float *s = (float *)malloc(sizeof(float) * num_seqs);
     int root_idx = -1;
     for (int remain = num_seqs; remain > 2; --remain) {
       // Calculate sums over row on GPU
@@ -208,33 +363,16 @@ public:
           d_s_level0, num_seqs, n_blocks_per_row, d_s_level1);
       CHECK(cudaDeviceSynchronize());
 
-      // calculate sums over row
-      for (int i = 0; i < num_seqs; ++i) {
-        s[i] = 0.0f;
-        for (int j = 0; j < num_seqs; ++j) {
-          s[i] +=
-              isinf(h_mat[i * num_seqs + j]) ? 0.0f : h_mat[i * num_seqs + j];
-        }
-      }
-
       // Calculate q matrix on GPU
       calculate_q<<<dim3(ceil(num_seqs / (float)Q_BLOCK_SIZE),
                          ceil(num_seqs / (float)Q_BLOCK_SIZE), 1),
-                    dim3(Q_BLOCK_SIZE, Q_BLOCK_SIZE, 1)>>>(d_mat, d_s_level1,
-                                                       num_seqs, remain, d_q);
+                    dim3(Q_BLOCK_SIZE, Q_BLOCK_SIZE, 1)>>>(
+          d_mat, d_s_level1, num_seqs, remain, d_q);
 
       CHECK(cudaDeviceSynchronize());
 
-      // calculate q matrix;
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          q[i * num_seqs + j] =
-              isinf(h_mat[i * num_seqs + j])
-                  ? INFINITY
-                  : (remain - 2) * h_mat[i * num_seqs + j] - s[i] - s[j];
-        }
-      }
-
+      // Copy back device q back to host q to check
+      CHECK(cudaMemcpy(q, d_q, sizeof(float) * num_seqs * num_seqs, cudaMemcpyDeviceToHost));
       for (int i = 0; i < num_seqs; ++i) {
         for (int j = 0; j < num_seqs; ++j) {
           cout << q[i * num_seqs + j] << ",\t";
@@ -243,21 +381,60 @@ public:
       }
       cout << "--------------------------------------\n";
 
-      int idx = getMinIdx(q, num_seqs * num_seqs);
+      // Get min on GPU
+      // Reduction round 1
+      getMin<<<n_out_level0, BLOCK_SIZE>>>(d_q, nullptr, n, d_val_level0,
+                                           d_idx_level0);
+      CHECK(cudaDeviceSynchronize());
+
+      // Reduction round 2
+      getMin<<<n_out_level1, BLOCK_SIZE>>>(
+          d_val_level0, d_idx_level0, n_out_level0, d_val_level1, d_idx_level1);
+      CHECK(cudaDeviceSynchronize());
+
+      // Copy results and indexes back
+      CHECK(cudaMemcpy(h_val_level1, d_val_level1, sizeof(float) * n_out_level1,
+                       cudaMemcpyDeviceToHost));
+      CHECK(cudaMemcpy(h_idx_level1, d_idx_level1, sizeof(int) * n_out_level1,
+                       cudaMemcpyDeviceToHost));
+
+      float val = h_val_level1[0];
+      int idx = h_idx_level1[0];
+      for (int i = 0; i < n_out_level1; ++i) {
+        if (h_val_level1[i] < val) {
+          val = h_val_level1[i];
+          idx = h_idx_level1[i];
+        }
+      }
+
       int idx1 = idx / num_seqs;
       int idx2 = idx % num_seqs;
       if (idx1 > idx2) {
         swap(idx1, idx2);
       }
       cout << idx1 << ", " << idx2 << "\n";
-      float length = h_mat[idx1 * num_seqs + idx2];
+
+      float length;
+      CHECK(cudaMemcpy(&length, &d_mat[idx1 * num_seqs + idx2], sizeof(float),
+                       cudaMemcpyDeviceToHost));
+      float s1, s2;
+      CHECK(cudaMemcpy(&s1, &d_s_level1[idx1], sizeof(float), cudaMemcpyDeviceToHost));
+      CHECK(cudaMemcpy(&s2, &d_s_level1[idx2], sizeof(float), cudaMemcpyDeviceToHost));
+
+      update<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(d_mat, num_seqs, idx1, idx2);
 
       float branch_length1 =
-          length / 2 + (s[idx1] - s[idx2]) / ((remain - 2) * 2);
+          length / 2 + (s1 - s2) / ((remain - 2) * 2);
       float branch_length2 = length - branch_length1;
       root = new Node(nodes[idx1], nodes[idx2], branch_length1, branch_length2);
-      update(idx1, idx2);
+      root_idx = idx1;
+      nodes[idx1] = root;
+      nodes[idx2] = nullptr;
 
+      CHECK(cudaDeviceSynchronize());
+      
+      // Copy device mat back to host mat to check
+      CHECK(cudaMemcpy(h_mat, d_mat, sizeof(float) * num_seqs * num_seqs, cudaMemcpyDeviceToHost));
       for (int i = 0; i < num_seqs; ++i) {
         for (int j = 0; j < num_seqs; ++j) {
           cout << h_mat[num_seqs * i + j] << ",\t";
@@ -265,9 +442,6 @@ public:
         cout << "\n";
       }
       cout << "--------------------------------------\n";
-      root_idx = idx1;
-      nodes[idx1] = root;
-      nodes[idx2] = nullptr;
     }
 
     Node *other_root = nullptr;
@@ -295,33 +469,6 @@ private:
   float *h_mat;
   int num_seqs;
   Node *root = nullptr;
-
-  int getMinIdx(float *a, int n) {
-    float val = INFINITY;
-    int idx = -1;
-    for (int i = 0; i < n; ++i) {
-      if (a[i] < val) {
-        idx = i;
-        val = a[i];
-      }
-    }
-    return idx;
-  }
-
-  void update(int idx1, int idx2) {
-    float d = h_mat[num_seqs * idx1 + idx2];
-    for (int i = 0; i < num_seqs; ++i) {
-      float val = h_mat[num_seqs * idx1 + i];
-      if (isinf(val)) {
-        continue;
-      }
-      float new_val = (val + h_mat[num_seqs * idx2 + i] - d) / 2;
-      h_mat[num_seqs * idx1 + i] = new_val;
-      h_mat[num_seqs * idx2 + i] = INFINITY;
-      h_mat[num_seqs * i + idx1] = new_val;
-      h_mat[num_seqs * i + idx2] = INFINITY;
-    }
-  }
 
   void cleanup(Node *node) {
     if (node == nullptr) {
