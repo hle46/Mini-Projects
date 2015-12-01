@@ -1,6 +1,9 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <ctime>
+#include <iomanip>
+
 using std::swap;
 using std::cout;
 using std::vector;
@@ -105,14 +108,14 @@ private:
     }
     cout << "(";
     print(node->left);
-    cout << ": " << node->branch_length[0] << ", ";
+    cout << ": " << std::fixed << node->branch_length[0] << ", ";
     print(node->right);
-    cout << ": " << node->branch_length[1] << ")";
+    cout << ": " << std::fixed << node->branch_length[1] << ")";
   }
 };
 
 int main() {
-  
+  /*
   const int num_seqs = 7;
   float a[num_seqs][num_seqs]{
       {INFINITY, 19.0f, 27.0f, 8.0f, 33.0f, 18.0f, 13.0f},
@@ -121,7 +124,7 @@ int main() {
       {8.0f, 18.0f, 26.0f, INFINITY, 31.0f, 17.0f, 14.0f},
       {33.0f, 36.0f, 41.0f, 31.0f, INFINITY, 35.0f, 28.0f},
       {18.0f, 1.0f, 32.0f, 17.0f, 35.0f, INFINITY, 12.0f},
-      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};
+      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};*/
 
   /*
   const int num_seqs = 6;
@@ -132,8 +135,20 @@ int main() {
       {6, 6, 6, INFINITY, 4, 8},
       {6, 6, 6, 4, INFINITY, 8}, 
       {8, 8, 8, 8, 8, INFINITY}};*/
+  const int num_seqs = 4096;
+  float *a = new float[num_seqs * num_seqs];
+  srand(0);
+  for (int i = 0; i < num_seqs; ++i) {
+    for (int j = 0; j < i; ++j) {
+      a[i * num_seqs + j] = rand() / (float) RAND_MAX;
+      a[j * num_seqs + i] = a[i * num_seqs + j];
+    }
+    a[i * num_seqs + i] = INFINITY;
+  }
 
-  UPGMA upgma((float *)a, num_seqs);
+  UPGMA upgma(a, num_seqs);
   upgma.print();
+
+  delete a;
   return 0;
 }

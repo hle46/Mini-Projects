@@ -56,12 +56,12 @@ __global__ void sum(float *input, int n, float *output_val) {
 
   // in-place reduction in shared memory
   if (blockDim.x >= 1024 && tx < 512) {
-    smem_val[tx] = s = s + smem_val[tx + 512];
+    smem_val[tx] += smem_val[tx + 512];
   }
   __syncthreads();
 
   if (blockDim.x >= 512 && tx < 256) {
-    smem_val[tx] = s = s + smem_val[tx + 256];
+    smem_val[tx] += smem_val[tx + 256];
   }
   __syncthreads();
 
@@ -78,31 +78,7 @@ __global__ void sum(float *input, int n, float *output_val) {
   // unrolling warp
   if (tx < 32) {
     volatile float *vsmem_val = smem_val;
-    volatile int *vsmem_idx = smem_idx;
-    if (vsmem_val[tx + 32] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 32];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 32];
-    }
-    if (vsmem_val[tx + 16] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 16];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 16];
-    }
-    if (vsmem_val[tx + 8] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 8];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 8];
-    }
-    if (vsmem_val[tx + 4] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 4];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 4];
-    }
-    if (vsmem_val[tx + 2] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 2];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 2];
-    }
-    if (vsmem_val[tx + 1] < vsmem_val[tx]) {
-      vsmem_val[tx] = min_val = vsmem_val[tx + 1];
-      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 1];
-    }
+    
   }
 
   if (tx == 0) {

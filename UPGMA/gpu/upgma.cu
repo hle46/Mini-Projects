@@ -1,6 +1,7 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <iomanip>
 #include <cuda.h>
 #include <cuda_runtime.h>
 
@@ -102,25 +103,25 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   __syncthreads();
 
   // in-place reduction in shared memory
-  if (blockDim.x >= 1024 && tx < 512 && smem_val[tx + 512] < smem_val[tx]) {
+  if (blockDim.x >= 1024 && tx < 512 && smem_val[tx + 512] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 512];
     smem_idx[tx] = min_idx = smem_idx[tx + 512];
   }
   __syncthreads();
 
-  if (blockDim.x >= 512 && tx < 256 && smem_val[tx + 256] < smem_val[tx]) {
+  if (blockDim.x >= 512 && tx < 256 && smem_val[tx + 256] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 256];
     smem_idx[tx] = min_idx = smem_idx[tx + 256];
   }
   __syncthreads();
 
-  if (blockDim.x >= 256 && tx < 128 && smem_val[tx + 128] < smem_val[tx]) {
+  if (blockDim.x >= 256 && tx < 128 && smem_val[tx + 128] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 128];
     smem_idx[tx] = min_idx = smem_idx[tx + 128];
   }
   __syncthreads();
 
-  if (blockDim.x >= 128 && tx < 64 && smem_val[tx + 64] < smem_val[tx]) {
+  if (blockDim.x >= 128 && tx < 64 && smem_val[tx + 64] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 64];
     smem_idx[tx] = min_idx = smem_idx[tx + 64];
   }
@@ -130,27 +131,27 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   if (tx < 32) {
     volatile float *vsmem_val = smem_val;
     volatile int *vsmem_idx = smem_idx;
-    if (vsmem_val[tx + 32] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 32] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 32];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 32];
     }
-    if (vsmem_val[tx + 16] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 16] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 16];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 16];
     }
-    if (vsmem_val[tx + 8] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 8] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 8];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 8];
     }
-    if (vsmem_val[tx + 4] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 4] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 4];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 4];
     }
-    if (vsmem_val[tx + 2] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 2] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 2];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 2];
     }
-    if (vsmem_val[tx + 1] < vsmem_val[tx]) {
+    if (vsmem_val[tx + 1] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 1];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 1];
     }
@@ -306,13 +307,14 @@ private:
     }
     cout << "(";
     print(node->left);
-    cout << ": " << node->branch_length[0] << ", ";
+    cout << ": " << std::fixed << node->branch_length[0] << ", ";
     print(node->right);
-    cout << ": " << node->branch_length[1] << ")";
+    cout << ": " << std::fixed << node->branch_length[1] << ")";
   }
 };
 
 int main() {
+  /*
   const int num_seqs = 7;
   float h_a[num_seqs][num_seqs]{
       {INFINITY, 19.0f, 27.0f, 8.0f, 33.0f, 18.0f, 13.0f},
@@ -321,7 +323,7 @@ int main() {
       {8.0f, 18.0f, 26.0f, INFINITY, 31.0f, 17.0f, 14.0f},
       {33.0f, 36.0f, 41.0f, 31.0f, INFINITY, 35.0f, 28.0f},
       {18.0f, 1.0f, 32.0f, 17.0f, 35.0f, INFINITY, 12.0f},
-      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};
+      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}}; */
 
   /*
   const int num_seqs = 6;
@@ -329,8 +331,18 @@ int main() {
       {INFINITY, 2, 4, 6, 6, 8}, {2, INFINITY, 4, 6, 6, 8},
       {4, 4, INFINITY, 6, 6, 8}, {6, 6, 6, INFINITY, 4, 8},
       {6, 6, 6, 4, INFINITY, 8}, {8, 8, 8, 8, 8, INFINITY}}; */
+  const int num_seqs = 4096;
+  float *a = new float[num_seqs * num_seqs];
+  srand(0);
+  for (int i = 0; i < num_seqs; ++i) {
+    for (int j = 0; j < i; ++j) {
+      a[i * num_seqs + j] = rand() / (float)RAND_MAX;
+      a[j * num_seqs + i] = a[i * num_seqs + j];
+    }
+    a[i * num_seqs + i] = INFINITY;
+  }
 
-  UPGMA upgma((float *)h_a, num_seqs);
+  UPGMA upgma(a, num_seqs);
   upgma.print();
   return 0;
 }
