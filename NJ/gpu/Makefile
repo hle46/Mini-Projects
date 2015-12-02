@@ -1,5 +1,5 @@
 CC = nvcc
-CFLAGS = -c -std=c++11 -arch=sm_50 -I/usr/local/cuda/include 
+CFLAGS = -O3 -c -std=c++11 -arch=sm_50 -I/usr/local/cuda/include 
 LDFLAGS = -lcudart -L/usr/local/cuda/lib64
 SRCS = nj.cu
 OBJS = $(SRCS:.cu=.o)

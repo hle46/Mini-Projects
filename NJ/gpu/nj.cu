@@ -11,7 +11,7 @@ using std::swap;
 using std::cout;
 using std::vector;
 
-#define BLOCK_SIZE 128
+#define BLOCK_SIZE 128 // Block size should be multiple of 64
 #define Q_BLOCK_SIZE 16
 
 #define CHECK(call)                                                            \
@@ -27,9 +27,10 @@ using std::vector;
 
 struct Node {
   Node() = default;
-  Node(Node *left, Node *right, float length1, float length2)
-      : childs{left, right}, branch_length{length1, length2} {}
+  Node(int _id, Node *left, Node *right, float length1, float length2)
+      : id{_id}, childs{left, right}, branch_length{length1, length2} {}
   ~Node() = default;
+  int id;
   vector<Node *> childs;
   vector<float> branch_length;
 };
@@ -39,6 +40,7 @@ __global__ void sum_level0(float *input, int n_e, int n_b, float *output_val) {
 
   int tx = threadIdx.x;
   int bx = blockIdx.x;
+  int bs = blockDim.x;
   int i = (bx / n_b) * n_e + tx +
           (bx % n_b) * BLOCK_SIZE * 8; // (bx / n_b) * n_e is offset
   int n = ((bx / n_b) + 1) * n_e;
@@ -77,22 +79,22 @@ __global__ void sum_level0(float *input, int n_e, int n_b, float *output_val) {
   __syncthreads();
 
   // in-place reduction in shared memory
-  if (blockDim.x >= 1024 && tx < 512) {
+  if (bs >= 1024 && tx < 512) {
     smem_val[tx] = val = val + smem_val[tx + 512];
   }
   __syncthreads();
 
-  if (blockDim.x >= 512 && tx < 256) {
+  if (bs >= 512 && tx < 256) {
     smem_val[tx] = val = val + smem_val[tx + 256];
   }
   __syncthreads();
 
-  if (blockDim.x >= 256 && tx < 128) {
+  if (bs >= 256 && tx < 128) {
     smem_val[tx] = val = val + smem_val[tx + 128];
   }
   __syncthreads();
 
-  if (blockDim.x >= 128 && tx < 64) {
+  if (bs >= 128 && tx < 64) {
     smem_val[tx] = val = val + smem_val[tx + 64];
   }
   __syncthreads();
@@ -109,6 +111,7 @@ __global__ void sum_level0(float *input, int n_e, int n_b, float *output_val) {
   }
 
   if (tx == 0) {
+    //printf("Block: %d, val: %f\n", bx, val);
     output_val[(bx / n_b) + (bx % n_b) * n_e] = val;
   }
 }
@@ -124,6 +127,7 @@ __global__ void sum_level1(float *input, int n_e, int n_b, float *output) {
     val += input[i + j * n_e];
   }
   output[i] = val;
+  //printf("%d, %f\n", i, val);
 }
 
 __global__ void calculate_q(float *mat, float *s, int n, int remain, float *q) {
@@ -293,13 +297,17 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   }
 */
 
-__global__ void update(float *mat, int n, int idx1, int idx2) {
+__global__ void update(float *mat, int n, float d, int idx1, int idx2) {
   int tx = threadIdx.x;
   int i = tx + blockDim.x * blockIdx.x;
   if (i >= n) {
     return;
   }
-  float d = mat[n * idx1 + idx2];
+  if (i == idx2) {
+    mat[n * idx1 + idx2] = INFINITY;
+    mat[n * idx2 + idx1] = INFINITY;
+    return;
+  }
   float val = mat[n * idx1 + i];
   if (isinf(val)) {
     return;
@@ -314,10 +322,11 @@ __global__ void update(float *mat, int n, int idx1, int idx2) {
 
 class NJ {
 public:
-  NJ(float *_mat, int _num_seqs) : h_mat{_mat}, num_seqs{_num_seqs} {
+  NJ(float *_mat, int _num_seqs)
+      : h_mat{_mat}, num_seqs{_num_seqs}, root{nullptr} {
     vector<Node *> nodes(num_seqs);
     for (int i = 0; i < num_seqs; ++i) {
-      nodes[i] = new Node(nullptr, nullptr, 0.0f, 0.0f);
+      nodes[i] = new Node(i, nullptr, nullptr, 0.0f, 0.0f);
     }
 
     int n = num_seqs * num_seqs;
@@ -371,6 +380,7 @@ public:
 
       CHECK(cudaDeviceSynchronize());
 
+      /*
       // Copy back device q back to host q to check
       CHECK(cudaMemcpy(q, d_q, sizeof(float) * num_seqs * num_seqs, cudaMemcpyDeviceToHost));
       for (int i = 0; i < num_seqs; ++i) {
@@ -379,7 +389,7 @@ public:
         }
         cout << "\n";
       }
-      cout << "--------------------------------------\n";
+      cout << "--------------------------------------\n";*/
 
       // Get min on GPU
       // Reduction round 1
@@ -412,7 +422,7 @@ public:
       if (idx1 > idx2) {
         swap(idx1, idx2);
       }
-      cout << idx1 << ", " << idx2 << "\n";
+      // cout << idx1 << ", " << idx2 << "\n";
 
       float length;
       CHECK(cudaMemcpy(&length, &d_mat[idx1 * num_seqs + idx2], sizeof(float),
@@ -421,18 +431,22 @@ public:
       CHECK(cudaMemcpy(&s1, &d_s_level1[idx1], sizeof(float), cudaMemcpyDeviceToHost));
       CHECK(cudaMemcpy(&s2, &d_s_level1[idx2], sizeof(float), cudaMemcpyDeviceToHost));
 
-      update<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(d_mat, num_seqs, idx1, idx2);
+      update<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(d_mat, num_seqs, length, idx1, idx2);
 
       float branch_length1 =
           length / 2 + (s1 - s2) / ((remain - 2) * 2);
       float branch_length2 = length - branch_length1;
-      root = new Node(nodes[idx1], nodes[idx2], branch_length1, branch_length2);
+      if (nodes[idx1] == nullptr || nodes[idx2] == nullptr) {
+	cout << idx1 << ", " << idx2 << " Fuck\n";
+      }
+      root = new Node(-1, nodes[idx1], nodes[idx2], branch_length1, branch_length2);
       root_idx = idx1;
       nodes[idx1] = root;
       nodes[idx2] = nullptr;
 
       CHECK(cudaDeviceSynchronize());
       
+      /*
       // Copy device mat back to host mat to check
       CHECK(cudaMemcpy(h_mat, d_mat, sizeof(float) * num_seqs * num_seqs, cudaMemcpyDeviceToHost));
       for (int i = 0; i < num_seqs; ++i) {
@@ -441,7 +455,7 @@ public:
         }
         cout << "\n";
       }
-      cout << "--------------------------------------\n";
+      cout << "--------------------------------------\n"; */
     }
 
     Node *other_root = nullptr;
@@ -450,13 +464,35 @@ public:
       if (nodes[i] != nullptr && nodes[i] != root) {
         other_root = nodes[i];
         other_root_idx = i;
+	nodes[i] = nullptr;
         break;
       }
     }
-    root->childs.push_back(other_root);
-    root->branch_length.push_back(h_mat[root_idx * num_seqs + other_root_idx]);
+    
+    float length;
+    CHECK(cudaMemcpy(&length, &d_mat[root_idx * num_seqs + other_root_idx], sizeof(float), cudaMemcpyDeviceToHost));
 
-    // Free memory
+    if (root_idx < other_root_idx) {
+      root->childs.push_back(other_root);
+      root->branch_length.push_back(length);
+    } else {
+      other_root->childs.push_back(root);
+      other_root->branch_length.push_back(length);
+    }
+
+    // Free device memory
+    CHECK(cudaFree(d_mat));
+    CHECK(cudaFree(d_q));
+    CHECK(cudaFree(d_s_level0));
+    CHECK(cudaFree(d_s_level1));
+    CHECK(cudaFree(d_val_level0));
+    CHECK(cudaFree(d_idx_level0));
+    CHECK(cudaFree(d_val_level1));
+    CHECK(cudaFree(d_idx_level1));
+
+    // Free host memory
+    free(h_val_level1);
+    free(h_idx_level1);
     free(q);
   }
 
@@ -468,7 +504,7 @@ public:
 private:
   float *h_mat;
   int num_seqs;
-  Node *root = nullptr;
+  Node *root;
 
   void cleanup(Node *node) {
     if (node == nullptr) {
@@ -482,29 +518,54 @@ private:
   }
 
   void print(Node *node) {
+    if (node == nullptr) {
+      cout << "Oops! Null pointer\n";
+    }
     int num_childs = node->childs.size();
     // Reach the leaf
     if (num_childs == 2 && node->childs[0] == nullptr &&
         node->childs[1] == nullptr) {
+      cout << "A" + std::to_string(node->id);
       return;
     }
     cout << "(";
     for (int i = 0; i < num_childs - 1; ++i) {
       print(node->childs[i]);
-      cout << ": " << node->branch_length[i] << ", ";
+      cout << ":" << node->branch_length[i] << ",";
     }
     print(node->childs[num_childs - 1]);
-    cout << ": " << node->branch_length[num_childs - 1] << ")";
+    cout << ":" << node->branch_length[num_childs - 1] << ")";
   }
 };
 
 int main() {
+  /*
   const int num_seqs = 5;
   float a[num_seqs][num_seqs]{{INFINITY, 5.0f, 9.0f, 9.0f, 8.0f},
                               {5.0f, INFINITY, 10.0f, 10.0f, 9.0f},
                               {9.0f, 10.0f, INFINITY, 8.0f, 7.0f},
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
-                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};
+                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
+
+  const int num_seqs = 2048;
+  float *a = new float[num_seqs * num_seqs];
+  srand(0);
+  for (int i = 0; i < num_seqs; ++i) {
+    for (int j = 0; j < i; ++j) {
+      a[i * num_seqs + j] = rand() / (float)RAND_MAX;
+      a[j * num_seqs + i] = a[i * num_seqs + j];
+    }
+    a[i * num_seqs + i] = INFINITY;
+  }
+
+  /*
+  for (int i = 0; i < num_seqs; ++i) {
+    for (int j = 0; j < num_seqs; ++j) {
+      cout << a[num_seqs * i + j] << ",\t";
+    }
+    cout << "\n";
+  }
+  cout << "--------------------------------------\n";*/
 
   assert(num_seqs > 2);
   NJ nj((float *)a, num_seqs);
