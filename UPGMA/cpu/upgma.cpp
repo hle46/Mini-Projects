@@ -78,6 +78,11 @@ private:
   void update(int idx1, int idx2, int num_nodes1, int num_nodes2) {
     int total_nodes = num_nodes1 + num_nodes2;
     for (int i = 0; i < num_seqs; ++i) {
+      if (i == idx2) {
+        mat[num_seqs * idx1 + i] = INFINITY;
+        mat[num_seqs * i + idx1] = INFINITY;
+        continue;
+      }
       float val = mat[num_seqs * idx1 + i];
       if (isinf(val)) {
         continue;

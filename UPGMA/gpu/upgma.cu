@@ -36,14 +36,15 @@ struct Node {
   }
 };
 
+template <unsigned int blockSize>
 __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
                        int *output_idx) {
-  __shared__ float smem_val[BLOCK_SIZE];
-  __shared__ int smem_idx[BLOCK_SIZE];
+  __shared__ float smem_val[blockSize];
+  __shared__ int smem_idx[blockSize];
 
   int tx = threadIdx.x;
   int bx = blockIdx.x;
-  int i = tx + bx * BLOCK_SIZE * 8;
+  int i = tx + bx * blockSize * 8;
 
   float min_val = INFINITY;
   int min_idx = i;
@@ -52,49 +53,49 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
     float a1, a2, a3, a4, a5, a6, a7, a8;
     a1 = input[i];
 
-    a2 = (i + BLOCK_SIZE) < n ? input[i + BLOCK_SIZE] : INFINITY;
+    a2 = (i + blockSize) < n ? input[i + blockSize] : INFINITY;
 
-    a3 = (i + 2 * BLOCK_SIZE) < n ? input[i + 2 * BLOCK_SIZE] : INFINITY;
+    a3 = (i + 2 * blockSize) < n ? input[i + 2 * blockSize] : INFINITY;
 
-    a4 = (i + 3 * BLOCK_SIZE) < n ? input[i + 3 * BLOCK_SIZE] : INFINITY;
+    a4 = (i + 3 * blockSize) < n ? input[i + 3 * blockSize] : INFINITY;
 
-    a5 = (i + 4 * BLOCK_SIZE) < n ? input[i + 4 * BLOCK_SIZE] : INFINITY;
+    a5 = (i + 4 * blockSize) < n ? input[i + 4 * blockSize] : INFINITY;
 
-    a6 = (i + 5 * BLOCK_SIZE) < n ? input[i + 5 * BLOCK_SIZE] : INFINITY;
+    a6 = (i + 5 * blockSize) < n ? input[i + 5 * blockSize] : INFINITY;
 
-    a7 = (i + 6 * BLOCK_SIZE) < n ? input[i + 6 * BLOCK_SIZE] : INFINITY;
+    a7 = (i + 6 * blockSize) < n ? input[i + 6 * blockSize] : INFINITY;
 
-    a8 = (i + 7 * BLOCK_SIZE) < n ? input[i + 7 * BLOCK_SIZE] : INFINITY;
+    a8 = (i + 7 * blockSize) < n ? input[i + 7 * blockSize] : INFINITY;
 
     min_val = a1;
     min_idx = i;
     if (a2 < min_val) {
       min_val = a2;
-      min_idx = i + BLOCK_SIZE;
+      min_idx = i + blockSize;
     }
     if (a3 < min_val) {
       min_val = a3;
-      min_idx = i + 2 * BLOCK_SIZE;
+      min_idx = i + 2 * blockSize;
     }
     if (a4 < min_val) {
       min_val = a4;
-      min_idx = i + 3 * BLOCK_SIZE;
+      min_idx = i + 3 * blockSize;
     }
     if (a5 < min_val) {
       min_val = a5;
-      min_idx = i + 4 * BLOCK_SIZE;
+      min_idx = i + 4 * blockSize;
     }
     if (a6 < min_val) {
       min_val = a6;
-      min_idx = i + 5 * BLOCK_SIZE;
+      min_idx = i + 5 * blockSize;
     }
     if (a7 < min_val) {
       min_val = a7;
-      min_idx = i + 6 * BLOCK_SIZE;
+      min_idx = i + 6 * blockSize;
     }
     if (a8 < min_val) {
       min_val = a8;
-      min_idx = i + 7 * BLOCK_SIZE;
+      min_idx = i + 7 * blockSize;
     }
   }
 
@@ -103,25 +104,25 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   __syncthreads();
 
   // in-place reduction in shared memory
-  if (blockDim.x >= 1024 && tx < 512 && smem_val[tx + 512] < min_val) {
+  if (blockSize >= 1024 && tx < 512 && smem_val[tx + 512] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 512];
     smem_idx[tx] = min_idx = smem_idx[tx + 512];
   }
   __syncthreads();
 
-  if (blockDim.x >= 512 && tx < 256 && smem_val[tx + 256] < min_val) {
+  if (blockSize >= 512 && tx < 256 && smem_val[tx + 256] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 256];
     smem_idx[tx] = min_idx = smem_idx[tx + 256];
   }
   __syncthreads();
 
-  if (blockDim.x >= 256 && tx < 128 && smem_val[tx + 128] < min_val) {
+  if (blockSize >= 256 && tx < 128 && smem_val[tx + 128] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 128];
     smem_idx[tx] = min_idx = smem_idx[tx + 128];
   }
   __syncthreads();
 
-  if (blockDim.x >= 128 && tx < 64 && smem_val[tx + 64] < min_val) {
+  if (blockSize >= 128 && tx < 64 && smem_val[tx + 64] < min_val) {
     smem_val[tx] = min_val = smem_val[tx + 64];
     smem_idx[tx] = min_idx = smem_idx[tx + 64];
   }
@@ -131,27 +132,27 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   if (tx < 32) {
     volatile float *vsmem_val = smem_val;
     volatile int *vsmem_idx = smem_idx;
-    if (vsmem_val[tx + 32] < min_val) {
+    if (blockSize >= 64 && vsmem_val[tx + 32] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 32];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 32];
     }
-    if (vsmem_val[tx + 16] < min_val) {
+    if (blockSize >= 32 && vsmem_val[tx + 16] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 16];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 16];
     }
-    if (vsmem_val[tx + 8] < min_val) {
+    if (blockSize >= 16 && vsmem_val[tx + 8] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 8];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 8];
     }
-    if (vsmem_val[tx + 4] < min_val) {
+    if (blockSize >= 8 && vsmem_val[tx + 4] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 4];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 4];
     }
-    if (vsmem_val[tx + 2] < min_val) {
+    if (blockSize >= 4 && vsmem_val[tx + 2] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 2];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 2];
     }
-    if (vsmem_val[tx + 1] < min_val) {
+    if (blockSize >= 2 && vsmem_val[tx + 1] < min_val) {
       vsmem_val[tx] = min_val = vsmem_val[tx + 1];
       vsmem_idx[tx] = min_idx = vsmem_idx[tx + 1];
     }
@@ -168,6 +169,11 @@ __global__ void update(float *mat, int n, int idx1, int idx2, int num_nodes1,
   int tx = threadIdx.x;
   int i = tx + blockDim.x * blockIdx.x;
   if (i >= n) {
+    return;
+  }
+  if (i == idx2) {
+    mat[n * idx1 + i] = INFINITY;
+    mat[n * i + idx1] = INFINITY;
     return;
   }
   float val = mat[n * idx1 + i];
@@ -219,13 +225,13 @@ public:
 
     for (int remain = num_seqs; remain >= 2; --remain) {
       // Reduction round 1
-      getMin<<<n_out_level0, BLOCK_SIZE>>>(d_mat, nullptr, n, d_val_level0,
-                                           d_idx_level0);
+      getMin<BLOCK_SIZE><<<n_out_level0, BLOCK_SIZE>>>(
+          d_mat, nullptr, n, d_val_level0, d_idx_level0);
 
       CHECK(cudaDeviceSynchronize());
 
       // Reduction round 2
-      getMin<<<n_out_level1, BLOCK_SIZE>>>(
+      getMin<BLOCK_SIZE><<<n_out_level1, BLOCK_SIZE>>>(
           d_val_level0, d_idx_level0, n_out_level0, d_val_level1, d_idx_level1);
 
       CHECK(cudaDeviceSynchronize());
@@ -251,9 +257,9 @@ public:
         swap(idx1, idx2);
       }
 
-      update<<<num_seqs, BLOCK_SIZE>>>(d_mat, num_seqs, idx1, idx2,
-                                       nodes[idx1]->num_nodes,
-                                       nodes[idx2]->num_nodes);
+      update<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(
+          d_mat, num_seqs, idx1, idx2, nodes[idx1]->num_nodes,
+          nodes[idx2]->num_nodes);
 
       float length = val;
       root = new Node(nodes[idx1]->num_nodes + nodes[idx2]->num_nodes,

@@ -142,6 +142,7 @@ private:
       if (i == idx2) {
         mat[num_seqs * idx1 + i] = INFINITY;
         mat[num_seqs * i + idx1] = INFINITY;
+	continue;
       }
       float val = mat[num_seqs * idx1 + i];
       if (isinf(val)) {
