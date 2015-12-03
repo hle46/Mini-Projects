@@ -194,7 +194,7 @@ int main() {
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
                               {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
 
-  const int num_seqs = 2048;
+  const int num_seqs = 16;
   float *a = new float[num_seqs * num_seqs];
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {

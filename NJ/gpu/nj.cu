@@ -166,6 +166,148 @@ __global__ void calculate_q(float *mat, float *s, int n, int remain, float *q) {
 }
 
 template <unsigned int blockSize>
+__global__ void getMin1(float *input, int *input_idx, int n, float *s, int m,
+                        int remain, float *output_val, int *output_idx) {
+  __shared__ float smem_val[blockSize];
+  __shared__ int smem_idx[blockSize];
+
+  int tx = threadIdx.x;
+  int bx = blockIdx.x;
+  int i = tx + bx * blockSize * 8;
+
+  float min_val = INFINITY;
+  int min_idx = i;
+
+  if (i < n) {
+    float a1, a2, a3, a4, a5, a6, a7, a8;
+    a1 = input[i];
+    a1 = isinf(a1) ? INFINITY : ((remain - 2) * a1 - s[i / m] - s[i % m]);
+    min_val = a1;
+    min_idx = i;
+
+    i += blockSize;
+    a2 = i < n ? input[i] : INFINITY;
+    a2 = isinf(a2) ? INFINITY : ((remain - 2) * a2 - s[i / m] - s[i % m]);
+    if (a2 < min_val) {
+      min_val = a2;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a3 = i < n ? input[i] : INFINITY;
+    a3 = isinf(a3) ? INFINITY : ((remain - 2) * a3 - s[i / m] - s[i % m]);
+    if (a3 < min_val) {
+      min_val = a3;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a4 = i < n ? input[i] : INFINITY;
+    a4 = isinf(a4) ? INFINITY : ((remain - 2) * a4 - s[i / m] - s[i % m]);
+    if (a4 < min_val) {
+      min_val = a4;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a5 = i < n ? input[i] : INFINITY;
+    a5 = isinf(a5) ? INFINITY : ((remain - 2) * a5 - s[i / m] - s[i % m]);
+    if (a5 < min_val) {
+      min_val = a5;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a6 = i < n ? input[i] : INFINITY;
+    a6 = isinf(a6) ? INFINITY : ((remain - 2) * a6 - s[i / m] - s[i % m]);
+    if (a6 < min_val) {
+      min_val = a6;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a7 = i < n ? input[i] : INFINITY;
+    a7 = isinf(a7) ? INFINITY : ((remain - 2) * a7 - s[i / m] - s[i % m]);
+    if (a7 < min_val) {
+      min_val = a7;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a8 = i < n ? input[i] : INFINITY;
+    a8 = isinf(a8) ? INFINITY : ((remain - 2) * a8 - s[i / m] - s[i % m]);
+    if (a8 < min_val) {
+      min_val = a8;
+      min_idx = i;
+    }
+  }
+
+  smem_val[tx] = min_val;
+  smem_idx[tx] = min_idx;
+  __syncthreads();
+
+  // in-place reduction in shared memory
+  if (blockSize >= 1024 && tx < 512 && smem_val[tx + 512] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 512];
+    smem_idx[tx] = min_idx = smem_idx[tx + 512];
+  }
+  __syncthreads();
+
+  if (blockSize >= 512 && tx < 256 && smem_val[tx + 256] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 256];
+    smem_idx[tx] = min_idx = smem_idx[tx + 256];
+  }
+  __syncthreads();
+
+  if (blockSize >= 256 && tx < 128 && smem_val[tx + 128] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 128];
+    smem_idx[tx] = min_idx = smem_idx[tx + 128];
+  }
+  __syncthreads();
+
+  if (blockSize >= 128 && tx < 64 && smem_val[tx + 64] < min_val) {
+    smem_val[tx] = min_val = smem_val[tx + 64];
+    smem_idx[tx] = min_idx = smem_idx[tx + 64];
+  }
+  __syncthreads();
+
+  // unrolling warp
+  if (tx < 32) {
+    volatile float *vsmem_val = smem_val;
+    volatile int *vsmem_idx = smem_idx;
+    if (blockSize >= 64 && vsmem_val[tx + 32] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 32];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 32];
+    }
+    if (blockSize >= 32 && vsmem_val[tx + 16] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 16];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 16];
+    }
+    if (blockSize >= 16 && vsmem_val[tx + 8] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 8];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 8];
+    }
+    if (blockSize >= 8 && vsmem_val[tx + 4] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 4];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 4];
+    }
+    if (blockSize >= 4 && vsmem_val[tx + 2] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 2];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 2];
+    }
+    if (blockSize >= 2 && vsmem_val[tx + 1] < min_val) {
+      vsmem_val[tx] = min_val = vsmem_val[tx + 1];
+      vsmem_idx[tx] = min_idx = vsmem_idx[tx + 1];
+    }
+  }
+
+  if (tx == 0) {
+    output_val[bx] = min_val;
+    output_idx[bx] = (input_idx == nullptr) ? min_idx : input_idx[min_idx];
+  }
+}
+
+template <unsigned int blockSize>
 __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
                        int *output_idx) {
   __shared__ float smem_val[blockSize];
@@ -340,12 +482,12 @@ public:
 
     // Allocate device variables
     float *d_mat;                       // Device matrix
-    float *d_q;                         // Device q matrix
+    //float *d_q;                         // Device q matrix
     float *d_s_level0, *d_s_level1;     // Device s matrix
     float *d_val_level0, *d_val_level1; // Device min result values
     int *d_idx_level0, *d_idx_level1;   // Device min index values
     CHECK(cudaMalloc((void **)&d_mat, sizeof(float) * n));
-    CHECK(cudaMalloc((void **)&d_q, sizeof(float) * n));
+    //CHECK(cudaMalloc((void **)&d_q, sizeof(float) * n));
     CHECK(cudaMalloc((void **)&d_s_level0, sizeof(float) * n_out));
     CHECK(cudaMalloc((void **)&d_s_level1, sizeof(float) * num_seqs));
     CHECK(cudaMalloc((void **)&d_val_level0, sizeof(float) * n_out_level0));
@@ -355,7 +497,7 @@ public:
 
     CHECK(cudaMemcpy(d_mat, h_mat, sizeof(float) * n, cudaMemcpyHostToDevice));
 
-    float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
+    //float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
     int root_idx = -1;
     for (int remain = num_seqs; remain > 2; --remain) {
       // Calculate sums over row on GPU
@@ -368,12 +510,12 @@ public:
       CHECK(cudaDeviceSynchronize());
 
       // Calculate q matrix on GPU
-      calculate_q<<<dim3(ceil(num_seqs / (float)Q_BLOCK_SIZE),
+      /*calculate_q<<<dim3(ceil(num_seqs / (float)Q_BLOCK_SIZE),
                          ceil(num_seqs / (float)Q_BLOCK_SIZE), 1),
                     dim3(Q_BLOCK_SIZE, Q_BLOCK_SIZE, 1)>>>(
-          d_mat, d_s_level1, num_seqs, remain, d_q);
+		    d_mat, d_s_level1, num_seqs, remain, d_q); */
 
-      CHECK(cudaDeviceSynchronize());
+      //CHECK(cudaDeviceSynchronize());
 
       /*
       // Copy back device q back to host q to check
@@ -389,8 +531,9 @@ public:
 
       // Get min on GPU
       // Reduction round 1
-      getMin<BLOCK_SIZE><<<n_out_level0, BLOCK_SIZE>>>(
-          d_q, nullptr, n, d_val_level0, d_idx_level0);
+      getMin1<BLOCK_SIZE><<<n_out_level0, BLOCK_SIZE>>>(
+          d_mat, nullptr, n, d_s_level1, num_seqs, remain, d_val_level0,
+          d_idx_level0);
       CHECK(cudaDeviceSynchronize());
 
       // Reduction round 2
@@ -481,7 +624,7 @@ public:
 
     // Free device memory
     CHECK(cudaFree(d_mat));
-    CHECK(cudaFree(d_q));
+    //CHECK(cudaFree(d_q));
     CHECK(cudaFree(d_s_level0));
     CHECK(cudaFree(d_s_level1));
     CHECK(cudaFree(d_val_level0));
@@ -492,7 +635,7 @@ public:
     // Free host memory
     free(h_val_level1);
     free(h_idx_level1);
-    free(q);
+    //free(q);
   }
 
   void print() {
