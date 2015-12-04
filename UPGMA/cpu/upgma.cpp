@@ -3,10 +3,18 @@
 #include <vector>
 #include <ctime>
 #include <iomanip>
+#include <sys/time.h>
 
 using std::swap;
 using std::cout;
 using std::vector;
+
+inline double seconds() {
+  struct timeval tp;
+  struct timezone tzp;
+  int i = gettimeofday(&tp, &tzp);
+  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
+}
 
 struct Node {
   int num_nodes;          // number of nodes in the subtree
@@ -119,7 +127,7 @@ private:
   }
 };
 
-int main() {
+int main(int argc, char *argv[]) {
   /*
   const int num_seqs = 7;
   float a[num_seqs][num_seqs]{
@@ -140,7 +148,11 @@ int main() {
       {6, 6, 6, INFINITY, 4, 8},
       {6, 6, 6, 4, INFINITY, 8}, 
       {8, 8, 8, 8, 8, INFINITY}};*/
-  const int num_seqs = 4096;
+  if (argc != 2) {
+    cout << "Usage: " << argv[0] << " number\n";
+    exit(-1);
+  }
+  const int num_seqs = atoi(argv[1]);
   float *a = new float[num_seqs * num_seqs];
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {
@@ -151,9 +163,11 @@ int main() {
     a[i * num_seqs + i] = INFINITY;
   }
 
+  double start = seconds();
   UPGMA upgma(a, num_seqs);
+  double elapsed = seconds() - start;
   upgma.print();
-
+  cout << "Time to reconstruct the tree: " << elapsed << "\n";
   delete a;
   return 0;
 }

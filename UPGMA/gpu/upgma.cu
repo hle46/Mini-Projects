@@ -4,10 +4,18 @@
 #include <iomanip>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <sys/time.h>
 
 using std::swap;
 using std::cout;
 using std::vector;
+
+inline double seconds() {
+  struct timeval tp;
+  struct timezone tzp;
+  int i = gettimeofday(&tp, &tzp);
+  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
+}
 
 #define BLOCK_SIZE 128
 #define CHECK(call)                                                            \
@@ -52,50 +60,56 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   if (i < n) {
     float a1, a2, a3, a4, a5, a6, a7, a8;
     a1 = input[i];
-
-    a2 = (i + blockSize) < n ? input[i + blockSize] : INFINITY;
-
-    a3 = (i + 2 * blockSize) < n ? input[i + 2 * blockSize] : INFINITY;
-
-    a4 = (i + 3 * blockSize) < n ? input[i + 3 * blockSize] : INFINITY;
-
-    a5 = (i + 4 * blockSize) < n ? input[i + 4 * blockSize] : INFINITY;
-
-    a6 = (i + 5 * blockSize) < n ? input[i + 5 * blockSize] : INFINITY;
-
-    a7 = (i + 6 * blockSize) < n ? input[i + 6 * blockSize] : INFINITY;
-
-    a8 = (i + 7 * blockSize) < n ? input[i + 7 * blockSize] : INFINITY;
-
     min_val = a1;
     min_idx = i;
+
+    i += blockSize;
+    a2 = i < n ? input[i] : INFINITY;
     if (a2 < min_val) {
       min_val = a2;
-      min_idx = i + blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a3 = i < n ? input[i] : INFINITY;
     if (a3 < min_val) {
       min_val = a3;
-      min_idx = i + 2 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a4 = i < n ? input[i] : INFINITY;
     if (a4 < min_val) {
       min_val = a4;
-      min_idx = i + 3 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a5 = i < n ? input[i] : INFINITY;
     if (a5 < min_val) {
       min_val = a5;
-      min_idx = i + 4 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a6 = i < n ? input[i] : INFINITY;
     if (a6 < min_val) {
       min_val = a6;
-      min_idx = i + 5 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a7 = i < n ? input[i] : INFINITY;
     if (a7 < min_val) {
       min_val = a7;
-      min_idx = i + 6 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a8 = i < n ? input[i] : INFINITY;
     if (a8 < min_val) {
       min_val = a8;
-      min_idx = i + 7 * blockSize;
+      min_idx = i;
     }
   }
 
@@ -319,7 +333,7 @@ private:
   }
 };
 
-int main() {
+int main(int argc, char *argv[]) {
   /*
   const int num_seqs = 7;
   float h_a[num_seqs][num_seqs]{
@@ -337,7 +351,11 @@ int main() {
       {INFINITY, 2, 4, 6, 6, 8}, {2, INFINITY, 4, 6, 6, 8},
       {4, 4, INFINITY, 6, 6, 8}, {6, 6, 6, INFINITY, 4, 8},
       {6, 6, 6, 4, INFINITY, 8}, {8, 8, 8, 8, 8, INFINITY}}; */
-  const int num_seqs = 4096;
+  if (argc != 2) {
+    cout << "Usage: " << argv[0] << " number\n";
+    exit(-1);
+  }
+  const int num_seqs = atoi(argv[1]);
   float *a = new float[num_seqs * num_seqs];
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {
@@ -348,7 +366,11 @@ int main() {
     a[i * num_seqs + i] = INFINITY;
   }
 
+  double start = seconds();
   UPGMA upgma(a, num_seqs);
+  double elapsed = seconds() - start;
   upgma.print();
+  cout << "Time to reconstruct the tree: " << elapsed << "\n";
+  delete a;
   return 0;
 }

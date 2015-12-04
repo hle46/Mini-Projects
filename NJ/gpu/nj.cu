@@ -339,10 +339,8 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   if (i < n) {
     float a1, a2, a3, a4, a5, a6, a7, a8;
     a1 = input[i];
-    if (!isinf(a1)) {
-      min_val = a1;
-      min_idx = i;
-    }
+    min_val = a1;
+    min_idx = i;
 
     i += blockSize;
     a2 = i < n ? input[i] : INFINITY;
