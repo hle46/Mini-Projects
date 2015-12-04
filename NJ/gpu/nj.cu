@@ -181,64 +181,80 @@ __global__ void getMin1(float *input, int *input_idx, int n, float *s, int m,
   if (i < n) {
     float a1, a2, a3, a4, a5, a6, a7, a8;
     a1 = input[i];
-    a1 = isinf(a1) ? INFINITY : ((remain - 2) * a1 - s[i / m] - s[i % m]);
-    min_val = a1;
-    min_idx = i;
+    if (!isinf(a1)) {
+      a1 = ((remain - 2) * a1 - s[i / m] - s[i % m]);
+      min_val = a1;
+      min_idx = i;
+    }
 
     i += blockSize;
     a2 = i < n ? input[i] : INFINITY;
-    a2 = isinf(a2) ? INFINITY : ((remain - 2) * a2 - s[i / m] - s[i % m]);
-    if (a2 < min_val) {
-      min_val = a2;
-      min_idx = i;
+    if(!isinf(a2)) { 
+      a2 = ((remain - 2) * a2 - s[i / m] - s[i % m]);
+      if (a2 < min_val) {
+	min_val = a2;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a3 = i < n ? input[i] : INFINITY;
-    a3 = isinf(a3) ? INFINITY : ((remain - 2) * a3 - s[i / m] - s[i % m]);
-    if (a3 < min_val) {
-      min_val = a3;
-      min_idx = i;
+    if (!isinf(a3)) {
+      a3 = ((remain - 2) * a3 - s[i / m] - s[i % m]);
+      if (a3 < min_val) {
+	min_val = a3;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a4 = i < n ? input[i] : INFINITY;
-    a4 = isinf(a4) ? INFINITY : ((remain - 2) * a4 - s[i / m] - s[i % m]);
-    if (a4 < min_val) {
-      min_val = a4;
-      min_idx = i;
+    if (!isinf(a4)) {
+      a4 = ((remain - 2) * a4 - s[i / m] - s[i % m]);
+      if (a4 < min_val) {
+	min_val = a4;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a5 = i < n ? input[i] : INFINITY;
-    a5 = isinf(a5) ? INFINITY : ((remain - 2) * a5 - s[i / m] - s[i % m]);
-    if (a5 < min_val) {
-      min_val = a5;
-      min_idx = i;
+    if(!isinf(a5)) {
+      a5 = ((remain - 2) * a5 - s[i / m] - s[i % m]);
+      if (a5 < min_val) {
+	min_val = a5;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a6 = i < n ? input[i] : INFINITY;
-    a6 = isinf(a6) ? INFINITY : ((remain - 2) * a6 - s[i / m] - s[i % m]);
-    if (a6 < min_val) {
-      min_val = a6;
-      min_idx = i;
+    if (!isinf(a6)) {
+      a6 = ((remain - 2) * a6 - s[i / m] - s[i % m]);
+      if (a6 < min_val) {
+	min_val = a6;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a7 = i < n ? input[i] : INFINITY;
-    a7 = isinf(a7) ? INFINITY : ((remain - 2) * a7 - s[i / m] - s[i % m]);
-    if (a7 < min_val) {
-      min_val = a7;
-      min_idx = i;
+    if (!isinf(a7)) {
+      a7 = ((remain - 2) * a7 - s[i / m] - s[i % m]);
+      if (a7 < min_val) {
+	min_val = a7;
+	min_idx = i;
+      }
     }
 
     i += blockSize;
     a8 = i < n ? input[i] : INFINITY;
-    a8 = isinf(a8) ? INFINITY : ((remain - 2) * a8 - s[i / m] - s[i % m]);
-    if (a8 < min_val) {
-      min_val = a8;
-      min_idx = i;
+    if (!isinf(a8)) {
+      a8 = ((remain - 2) * a8 - s[i / m] - s[i % m]);
+      if (a8 < min_val) {
+	min_val = a8;
+	min_idx = i;
+      }
     }
   }
 
@@ -323,50 +339,58 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
   if (i < n) {
     float a1, a2, a3, a4, a5, a6, a7, a8;
     a1 = input[i];
-
-    a2 = (i + blockSize) < n ? input[i + blockSize] : INFINITY;
-
-    a3 = (i + 2 * blockSize) < n ? input[i + 2 * blockSize] : INFINITY;
-
-    a4 = (i + 3 * blockSize) < n ? input[i + 3 * blockSize] : INFINITY;
-
-    a5 = (i + 4 * blockSize) < n ? input[i + 4 * blockSize] : INFINITY;
-
-    a6 = (i + 5 * blockSize) < n ? input[i + 5 * blockSize] : INFINITY;
-
-    a7 = (i + 6 * blockSize) < n ? input[i + 6 * blockSize] : INFINITY;
-
-    a8 = (i + 7 * blockSize) < n ? input[i + 7 * blockSize] : INFINITY;
-
-    min_val = a1;
-    min_idx = i;
-    if (a2 < min_val) {
-      min_val = a2;
-      min_idx = i + blockSize;
+    if (!isinf(a1)) {
+      min_val = a1;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a2 = i < n ? input[i] : INFINITY;
+    if(a2 < min_val) {
+      min_val = a2;
+      min_idx = i;
+    }
+
+    i += blockSize;
+    a3 = i < n ? input[i] : INFINITY;
     if (a3 < min_val) {
       min_val = a3;
-      min_idx = i + 2 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a4 = i < n ? input[i] : INFINITY;
     if (a4 < min_val) {
       min_val = a4;
-      min_idx = i + 3 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a5 = i < n ? input[i] : INFINITY;
     if (a5 < min_val) {
       min_val = a5;
-      min_idx = i + 4 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a6 = i < n ? input[i] : INFINITY;
     if (a6 < min_val) {
       min_val = a6;
-      min_idx = i + 5 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a7 = i < n ? input[i] : INFINITY;
     if (a7 < min_val) {
       min_val = a7;
-      min_idx = i + 6 * blockSize;
+      min_idx = i;
     }
+
+    i += blockSize;
+    a8 = i < n ? input[i] : INFINITY;
     if (a8 < min_val) {
       min_val = a8;
-      min_idx = i + 7 * blockSize;
+      min_idx = i;
     }
   }
 
@@ -438,23 +462,21 @@ __global__ void getMin(float *input, int *input_idx, int n, float *output_val,
 __global__ void update(float *mat, int n, float d, int idx1, int idx2) {
   int tx = threadIdx.x;
   int i = tx + blockDim.x * blockIdx.x;
-  if (i >= n) {
-    return;
+  if (i < n) {
+    //if (i == idx2) {
+    //  mat[n * idx1 + idx2] = INFINITY;
+    //  mat[n * idx2 + idx1] = INFINITY;
+    //  return;
+    //}
+    float val = mat[n * idx1 + i];
+    if (!isinf(val)) {
+      float new_val = (val + mat[n * idx2 + i] - d) / 2.0;
+      mat[n * idx1 + i] = new_val;
+      mat[n * idx2 + i] = INFINITY;
+      mat[n * i + idx1] = new_val;
+      mat[n * i + idx2] = INFINITY;
+    }
   }
-  if (i == idx2) {
-    mat[n * idx1 + idx2] = INFINITY;
-    mat[n * idx2 + idx1] = INFINITY;
-    return;
-  }
-  float val = mat[n * idx1 + i];
-  if (isinf(val)) {
-    return;
-  }
-  float new_val = (val + mat[n * idx2 + i] - d) / 2.0;
-  mat[n * idx1 + i] = new_val;
-  mat[n * idx2 + i] = INFINITY;
-  mat[n * i + idx1] = new_val;
-  mat[n * i + idx2] = INFINITY;
 }
 
 class NJ {
