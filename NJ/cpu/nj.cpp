@@ -4,10 +4,18 @@
 #include <cassert>
 #include <cmath>
 #include <random>
+#include <sys/time.h>
 
 using std::swap;
 using std::cout;
 using std::vector;
+
+inline double seconds() {
+  struct timeval tp;
+  struct timezone tzp;
+  int i = gettimeofday(&tp, &tzp);
+  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
+}
 
 struct Node {
   Node() = default;
@@ -27,7 +35,7 @@ public:
     for (int i = 0; i < num_seqs; ++i) {
       nodes[i] = new Node(i, nullptr, nullptr, 0.0f, 0.0f);
     }
-    float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
+    //float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
     vector<float> s(num_seqs);
     int root_idx = -1;
     for (int remain = num_seqs; remain > 2; --remain) {
@@ -41,14 +49,14 @@ public:
       }
 
       // calculate q matrix;
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          q[i * num_seqs + j] =
-              isinf(mat[i * num_seqs + j])
-                  ? INFINITY
-                  : (remain - 2) * mat[i * num_seqs + j] - s[i] - s[j];
-        }
-      }
+      //for (int i = 0; i < num_seqs; ++i) {
+      //  for (int j = 0; j < num_seqs; ++j) {
+      //    q[i * num_seqs + j] =
+      //        isinf(mat[i * num_seqs + j])
+      //            ? INFINITY
+      //            : (remain - 2) * mat[i * num_seqs + j] - s[i] - s[j];
+      //  }
+      //}
 
       /*
       for (int i = 0; i < num_seqs; ++i) {
@@ -59,7 +67,7 @@ public:
       }
       cout << "--------------------------------------\n";*/
 
-      int idx = getMinIdx(q, num_seqs * num_seqs);
+      int idx = getMinIdx1(mat, s, num_seqs, remain);
       int idx1 = idx / num_seqs;
       int idx2 = idx % num_seqs;
       if (idx1 > idx2) {
@@ -111,7 +119,7 @@ public:
     }
 
     // Free memory
-    free(q);
+    //free(q);
   }
 
   void print() {
@@ -131,6 +139,23 @@ private:
       if (a[i] < val) {
         idx = i;
         val = a[i];
+      }
+    }
+    return idx;
+  }
+
+  int getMinIdx1(float *a, vector<float> &s, int n, int remain) {
+    float val = INFINITY;
+    int idx = -1;
+    for (int i = 0; i < n; ++i) {
+      for (int j = 0; j < n; ++j) {
+        float q = isinf(a[i * num_seqs + j])
+                      ? INFINITY
+                      : (remain - 2) * a[i * num_seqs + j] - s[i] - s[j];
+        if (q < val) {
+          idx = i * num_seqs + j;
+          val = q;
+        }
       }
     }
     return idx;
@@ -185,7 +210,7 @@ private:
   }
 };
 
-int main() {
+int main(int argc, char *argv[]) {
   /*
   const int num_seqs = 5;
   float a[num_seqs][num_seqs]{{INFINITY, 5.0f, 9.0f, 9.0f, 8.0f},
@@ -193,8 +218,11 @@ int main() {
                               {9.0f, 10.0f, INFINITY, 8.0f, 7.0f},
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
                               {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
-
-  const int num_seqs = 16;
+  if (argc != 2) {
+    cout << "Usage: " << argv[0] << " number\n";
+    exit(-1);
+  }
+  const int num_seqs = atoi(argv[1]);
   float *a = new float[num_seqs * num_seqs];
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {
@@ -215,7 +243,11 @@ int main() {
   cout << "--------------------------------------\n";*/
 
   assert(num_seqs > 2);
+  double start = seconds();
   NJ nj((float *)a, num_seqs);
+  double elapsed = seconds() - start;
   nj.print();
+  cout << "Time to reconstruct the tree: " << elapsed << "\n";
+  delete a;
   return 0;
 }

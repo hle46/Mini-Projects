@@ -6,10 +6,18 @@
 #include <algorithm>
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <sys/time.h>
 
 using std::swap;
 using std::cout;
 using std::vector;
+
+inline double seconds() {
+  struct timeval tp;
+  struct timezone tzp;
+  int i = gettimeofday(&tp, &tzp);
+  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
+}
 
 #define BLOCK_SIZE 128 // Block size should be multiple of 64
 #define Q_BLOCK_SIZE 32
@@ -700,7 +708,7 @@ private:
   }
 };
 
-int main() {
+int main(int argc, char *argv[]) {
   /*
   const int num_seqs = 5;
   float a[num_seqs][num_seqs]{{INFINITY, 5.0f, 9.0f, 9.0f, 8.0f},
@@ -708,8 +716,11 @@ int main() {
                               {9.0f, 10.0f, INFINITY, 8.0f, 7.0f},
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
                               {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
-
-  const int num_seqs = 2048;
+  if (argc != 2) {
+    cout << "Usage: " << argv[0] << " number\n";
+    exit(-1);
+  }
+  const int num_seqs = atoi(argv[1]);
   float *a = new float[num_seqs * num_seqs];
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {
@@ -730,7 +741,10 @@ int main() {
   cout << "--------------------------------------\n";*/
 
   assert(num_seqs > 2);
+  double start = seconds();
   NJ nj((float *)a, num_seqs);
+  double elapsed = seconds() - start;
   nj.print();
+  cout << "Time to reconstruct the tree: " << elapsed << "\n";
   return 0;
 }
