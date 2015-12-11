@@ -13,14 +13,14 @@ using std::vector;
 inline double seconds() {
   struct timeval tp;
   struct timezone tzp;
-  int i = gettimeofday(&tp, &tzp);
+  gettimeofday(&tp, &tzp);
   return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
 }
 
 struct Node {
   Node() = default;
   Node(int _id, Node *left, Node *right, float length1, float length2)
-    : id{_id}, childs{left, right}, branch_length{length1, length2} {}
+      : id{_id}, childs{left, right}, branch_length{length1, length2} {}
   ~Node() = default;
   int id;
   vector<Node *> childs;
@@ -35,7 +35,7 @@ public:
     for (int i = 0; i < num_seqs; ++i) {
       nodes[i] = new Node(i, nullptr, nullptr, 0.0f, 0.0f);
     }
-    //float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
+
     vector<float> s(num_seqs);
     int root_idx = -1;
     for (int remain = num_seqs; remain > 2; --remain) {
@@ -45,27 +45,7 @@ public:
         for (int j = 0; j < num_seqs; ++j) {
           s[i] += isinf(mat[i * num_seqs + j]) ? 0.0f : mat[i * num_seqs + j];
         }
-        // printf("%f\n", s[i]);
       }
-
-      // calculate q matrix;
-      //for (int i = 0; i < num_seqs; ++i) {
-      //  for (int j = 0; j < num_seqs; ++j) {
-      //    q[i * num_seqs + j] =
-      //        isinf(mat[i * num_seqs + j])
-      //            ? INFINITY
-      //            : (remain - 2) * mat[i * num_seqs + j] - s[i] - s[j];
-      //  }
-      //}
-
-      /*
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          cout << q[i * num_seqs + j] << ",\t";
-        }
-        cout << "\n";
-      }
-      cout << "--------------------------------------\n";*/
 
       int idx = getMinIdx1(mat, s, num_seqs, remain);
       int idx1 = idx / num_seqs;
@@ -74,26 +54,15 @@ public:
         swap(idx1, idx2);
       }
 
-      // cout << idx1 << ", " << idx2 << "\n";
       float length = mat[idx1 * num_seqs + idx2];
 
       float branch_length1 =
           length / 2 + (s[idx1] - s[idx2]) / ((remain - 2) * 2);
       float branch_length2 = length - branch_length1;
-      if (nodes[idx1] == nullptr || nodes[idx2] == nullptr) {
-        cout << idx1 << ", " << idx2 << " Fuck\n";
-      }
-      root = new Node(-1, nodes[idx1], nodes[idx2], branch_length1, branch_length2);
+      root = new Node(-1, nodes[idx1], nodes[idx2], branch_length1,
+                      branch_length2);
       update(idx1, idx2);
 
-      /*
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          cout << mat[num_seqs * i + j] << ",\t";
-        }
-        cout << "\n";
-      }
-      cout << "--------------------------------------\n";*/
       root_idx = idx1;
       nodes[idx1] = root;
       nodes[idx2] = nullptr;
@@ -117,9 +86,6 @@ public:
       other_root->branch_length.push_back(
           mat[other_root_idx * num_seqs + root_idx]);
     }
-
-    // Free memory
-    //free(q);
   }
 
   void print() {
@@ -167,7 +133,7 @@ private:
       if (i == idx2) {
         mat[num_seqs * idx1 + i] = INFINITY;
         mat[num_seqs * i + idx1] = INFINITY;
-	continue;
+        continue;
       }
       float val = mat[num_seqs * idx1 + i];
       if (isinf(val)) {
@@ -203,21 +169,29 @@ private:
     cout << "(";
     for (int i = 0; i < num_childs - 1; ++i) {
       print(node->childs[i]);
-      cout << ":" << node->branch_length[i] << ",";
+      cout << ": " << node->branch_length[i] << ", ";
     }
     print(node->childs[num_childs - 1]);
-    cout << ":" << node->branch_length[num_childs - 1] << ")";
+    cout << ": " << node->branch_length[num_childs - 1] << ")";
   }
 };
 
 int main(int argc, char *argv[]) {
-  /*
+#if 0
+  // This is test case
+  // The tree should be the same as the tree on Wiki
+  // https://en.wikipedia.org/wiki/Neighbor_joining
+  // Convention: a = A0, b = A1, c = A2, d = A3, e = A4
+  // u,v are internal nodes, doesn't have name in Newick format
   const int num_seqs = 5;
   float a[num_seqs][num_seqs]{{INFINITY, 5.0f, 9.0f, 9.0f, 8.0f},
                               {5.0f, INFINITY, 10.0f, 10.0f, 9.0f},
                               {9.0f, 10.0f, INFINITY, 8.0f, 7.0f},
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
-                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
+                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};
+  NJ nj((float *)a, num_seqs);
+  nj.print();
+#else
   if (argc != 2) {
     cout << "Usage: " << argv[0] << " number\n";
     exit(-1);
@@ -233,21 +207,13 @@ int main(int argc, char *argv[]) {
     a[i * num_seqs + i] = INFINITY;
   }
 
-  /*
-  for (int i = 0; i < num_seqs; ++i) {
-    for (int j = 0; j < num_seqs; ++j) {
-      cout << a[num_seqs * i + j] << ",\t";
-    }
-    cout << "\n";
-  }
-  cout << "--------------------------------------\n";*/
-
   assert(num_seqs > 2);
   double start = seconds();
-  NJ nj((float *)a, num_seqs);
+  NJ nj(a, num_seqs);
   double elapsed = seconds() - start;
   nj.print();
   cout << "Time to reconstruct the tree: " << elapsed << "\n";
   delete a;
+#endif
   return 0;
 }

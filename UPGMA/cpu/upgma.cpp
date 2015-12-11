@@ -12,19 +12,20 @@ using std::vector;
 inline double seconds() {
   struct timeval tp;
   struct timezone tzp;
-  int i = gettimeofday(&tp, &tzp);
+  gettimeofday(&tp, &tzp);
   return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
 }
 
 struct Node {
+  int id;
   int num_nodes;          // number of nodes in the subtree
   Node *left;             // left subtree
   Node *right;            // right subtree
   float total_length;     // total length of the subtree
   float branch_length[2]; // lengths of left and right subtrees
-  Node(int _num_nodes, float _length, Node *_left, Node *_right, float length1,
-       float length2)
-      : num_nodes(_num_nodes), left(_left), right(_right),
+  Node(int _id, int _num_nodes, float _length, Node *_left, Node *_right,
+       float length1, float length2)
+      : id(_id), num_nodes(_num_nodes), left(_left), right(_right),
         total_length(_length) {
     branch_length[0] = length1;
     branch_length[1] = length2;
@@ -33,10 +34,10 @@ struct Node {
 
 class UPGMA {
 public:
-  UPGMA(float *_mat, int _num_seqs): mat{_mat}, num_seqs{_num_seqs} {
-    vector<Node *> nodes(num_seqs); 
+  UPGMA(float *_mat, int _num_seqs) : mat{_mat}, num_seqs{_num_seqs} {
+    vector<Node *> nodes(num_seqs);
     for (int i = 0; i < num_seqs; ++i) {
-      nodes[i] = new Node(1, 0.0f, nullptr, nullptr, 0.0f, 0.0f);
+      nodes[i] = new Node(i, 1, 0.0f, nullptr, nullptr, 0.0f, 0.0f);
     }
     for (int remain = num_seqs; remain >= 2; --remain) {
       int idx = getMinIdx();
@@ -45,9 +46,9 @@ public:
       if (idx1 > idx2) {
         swap(idx1, idx2);
       }
-     
+
       float length = mat[idx1 * num_seqs + idx2];
-      root = new Node(nodes[idx1]->num_nodes + nodes[idx2]->num_nodes,
+      root = new Node(-1, nodes[idx1]->num_nodes + nodes[idx2]->num_nodes,
                       length / 2, nodes[idx1], nodes[idx2],
                       length / 2 - nodes[idx1]->total_length,
                       length / 2 - nodes[idx2]->total_length);
@@ -57,9 +58,7 @@ public:
     }
   }
 
-  ~UPGMA() { 
-    cleanup(root);
-  }
+  ~UPGMA() { cleanup(root); }
 
   void print() {
     print(root);
@@ -117,6 +116,7 @@ private:
   void print(Node *node) {
     // Reach the leaf
     if (node->left == nullptr && node->right == nullptr) {
+      cout << "A" + std::to_string(node->id);
       return;
     }
     cout << "(";
@@ -128,7 +128,11 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-  /*
+#if 0
+  // This is the test case
+  // The tree should have the same shape as the tree on this page (Source tab)
+  // http://www.southampton.ac.uk/~re1u06/teaching/upgma/
+  // Convention: A0 = A, A1 = B, A2 = C, A3 = D, A4 = E, A5 = F, A6 = G
   const int num_seqs = 7;
   float a[num_seqs][num_seqs]{
       {INFINITY, 19.0f, 27.0f, 8.0f, 33.0f, 18.0f, 13.0f},
@@ -137,17 +141,11 @@ int main(int argc, char *argv[]) {
       {8.0f, 18.0f, 26.0f, INFINITY, 31.0f, 17.0f, 14.0f},
       {33.0f, 36.0f, 41.0f, 31.0f, INFINITY, 35.0f, 28.0f},
       {18.0f, 1.0f, 32.0f, 17.0f, 35.0f, INFINITY, 12.0f},
-      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};*/
-
-  /*
-  const int num_seqs = 6;
-  float a[num_seqs][num_seqs]{
-      {INFINITY, 2, 4, 6, 6, 8}, 
-      {2, INFINITY, 4, 6, 6, 8},
-      {4, 4, INFINITY, 6, 6, 8}, 
-      {6, 6, 6, INFINITY, 4, 8},
-      {6, 6, 6, 4, INFINITY, 8}, 
-      {8, 8, 8, 8, 8, INFINITY}};*/
+      {13.0f, 13.0f, 29.0f, 14.0f, 28.0f, 12.0f, INFINITY}};
+  UPGMA upgma((float *)a, num_seqs);
+  upgma.print();
+#else
+  // This is mock data to test with large matrix
   if (argc != 2) {
     cout << "Usage: " << argv[0] << " number\n";
     exit(-1);
@@ -157,7 +155,7 @@ int main(int argc, char *argv[]) {
   srand(0);
   for (int i = 0; i < num_seqs; ++i) {
     for (int j = 0; j < i; ++j) {
-      a[i * num_seqs + j] = rand() / (float) RAND_MAX;
+      a[i * num_seqs + j] = rand() / (float)RAND_MAX;
       a[j * num_seqs + i] = a[i * num_seqs + j];
     }
     a[i * num_seqs + i] = INFINITY;
@@ -169,5 +167,6 @@ int main(int argc, char *argv[]) {
   upgma.print();
   cout << "Time to reconstruct the tree: " << elapsed << "\n";
   delete a;
+#endif
   return 0;
 }

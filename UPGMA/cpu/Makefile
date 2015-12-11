@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -O3 -c -Wall -Wextra -std=c++11
+CFLAGS = -O3 -c -Wall -std=c++11
 LDFLAGS =
 SRCS = upgma.cpp
 OBJS = $(SRCS:.cpp=.o)

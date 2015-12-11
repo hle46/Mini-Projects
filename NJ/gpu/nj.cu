@@ -20,7 +20,6 @@ inline double seconds() {
 }
 
 #define BLOCK_SIZE 128 // Block size should be multiple of 64
-#define Q_BLOCK_SIZE 32
 
 #define CHECK(call)                                                            \
   {                                                                            \
@@ -131,7 +130,6 @@ __global__ void sum_level0(float *input, int n_e, int n_b, float *output_val) {
   }
 
   if (tx == 0) {
-    // printf("Block: %d, val: %f\n", bx, val);
     output_val[(bx / n_b) + (bx % n_b) * n_e] = val;
   }
 }
@@ -140,37 +138,12 @@ __global__ void sum_level1(float *input, int n_e, int n_b, float *output) {
   int tx = threadIdx.x;
   int i = tx + blockIdx.x * blockDim.x;
   float val = 0.0f;
-  if (i >= n_e) {
-    return;
+  if (i < n_e) {
+    for (int j = 0; j < n_b; ++j) {
+      val += input[i + j * n_e];
+    }
+    output[i] = val;
   }
-  for (int j = 0; j < n_b; ++j) {
-    val += input[i + j * n_e];
-  }
-  output[i] = val;
-  // printf("%d, %f\n", i, val);
-}
-
-__global__ void calculate_q(float *mat, float *s, int n, int remain, float *q) {
-  int tx = threadIdx.x;
-  int ty = threadIdx.y;
-  int i = ty + blockIdx.y * blockDim.y;
-  int j = tx + blockIdx.x * blockDim.x;
-  if (i >= n || j >= n) {
-    return;
-  }
-  /*
-  __shared__ float smem_i[Q_BLOCK_SIZE];
-  __shared__ float smem_j[Q_BLOCK_SIZE];
-  if (tx == 0) {
-    smem_i[ty] = s[i];
-  }
-  if (ty == 0) {
-    smem_j[tx] = s[j];
-  }
-  __syncthreads();*/
-
-  float val = mat[i * n + j];
-  q[i * n + j] = isinf(val) ? INFINITY : ((remain - 2) * val - s[i] - s[j]);
 }
 
 template <unsigned int blockSize>
@@ -469,11 +442,6 @@ __global__ void update(float *mat, int n, float d, int idx1, int idx2) {
   int tx = threadIdx.x;
   int i = tx + blockDim.x * blockIdx.x;
   if (i < n) {
-    //if (i == idx2) {
-    //  mat[n * idx1 + idx2] = INFINITY;
-    //  mat[n * idx2 + idx1] = INFINITY;
-    //  return;
-    //}
     float val = mat[n * idx1 + i];
     if (!isinf(val)) {
       float new_val = (val + mat[n * idx2 + i] - d) / 2.0;
@@ -510,12 +478,10 @@ public:
 
     // Allocate device variables
     float *d_mat;                       // Device matrix
-    //float *d_q;                         // Device q matrix
     float *d_s_level0, *d_s_level1;     // Device s matrix
     float *d_val_level0, *d_val_level1; // Device min result values
     int *d_idx_level0, *d_idx_level1;   // Device min index values
     CHECK(cudaMalloc((void **)&d_mat, sizeof(float) * n));
-    //CHECK(cudaMalloc((void **)&d_q, sizeof(float) * n));
     CHECK(cudaMalloc((void **)&d_s_level0, sizeof(float) * n_out));
     CHECK(cudaMalloc((void **)&d_s_level1, sizeof(float) * num_seqs));
     CHECK(cudaMalloc((void **)&d_val_level0, sizeof(float) * n_out_level0));
@@ -525,7 +491,6 @@ public:
 
     CHECK(cudaMemcpy(d_mat, h_mat, sizeof(float) * n, cudaMemcpyHostToDevice));
 
-    //float *q = (float *)malloc(sizeof(float) * num_seqs * num_seqs);
     int root_idx = -1;
     for (int remain = num_seqs; remain > 2; --remain) {
       // Calculate sums over row on GPU
@@ -536,26 +501,6 @@ public:
       sum_level1<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(
           d_s_level0, num_seqs, n_blocks_per_row, d_s_level1);
       CHECK(cudaDeviceSynchronize());
-
-      // Calculate q matrix on GPU
-      /*calculate_q<<<dim3(ceil(num_seqs / (float)Q_BLOCK_SIZE),
-                         ceil(num_seqs / (float)Q_BLOCK_SIZE), 1),
-                    dim3(Q_BLOCK_SIZE, Q_BLOCK_SIZE, 1)>>>(
-		    d_mat, d_s_level1, num_seqs, remain, d_q); */
-
-      //CHECK(cudaDeviceSynchronize());
-
-      /*
-      // Copy back device q back to host q to check
-      CHECK(cudaMemcpy(q, d_q, sizeof(float) * num_seqs * num_seqs,
-      cudaMemcpyDeviceToHost));
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          cout << q[i * num_seqs + j] << ",\t";
-        }
-        cout << "\n";
-      }
-      cout << "--------------------------------------\n";*/
 
       // Get min on GPU
       // Reduction round 1
@@ -589,7 +534,6 @@ public:
       if (idx1 > idx2) {
         swap(idx1, idx2);
       }
-      // cout << idx1 << ", " << idx2 << "\n";
 
       float length;
       CHECK(cudaMemcpy(&length, &d_mat[idx1 * num_seqs + idx2], sizeof(float),
@@ -613,18 +557,6 @@ public:
       nodes[idx2] = nullptr;
 
       CHECK(cudaDeviceSynchronize());
-
-      /*
-      // Copy device mat back to host mat to check
-      CHECK(cudaMemcpy(h_mat, d_mat, sizeof(float) * num_seqs * num_seqs,
-      cudaMemcpyDeviceToHost));
-      for (int i = 0; i < num_seqs; ++i) {
-        for (int j = 0; j < num_seqs; ++j) {
-          cout << h_mat[num_seqs * i + j] << ",\t";
-        }
-        cout << "\n";
-      }
-      cout << "--------------------------------------\n"; */
     }
 
     Node *other_root = nullptr;
@@ -652,7 +584,6 @@ public:
 
     // Free device memory
     CHECK(cudaFree(d_mat));
-    //CHECK(cudaFree(d_q));
     CHECK(cudaFree(d_s_level0));
     CHECK(cudaFree(d_s_level1));
     CHECK(cudaFree(d_val_level0));
@@ -663,7 +594,6 @@ public:
     // Free host memory
     free(h_val_level1);
     free(h_idx_level1);
-    //free(q);
   }
 
   void print() {
@@ -688,9 +618,6 @@ private:
   }
 
   void print(Node *node) {
-    if (node == nullptr) {
-      cout << "Oops! Null pointer\n";
-    }
     int num_childs = node->childs.size();
     // Reach the leaf
     if (num_childs == 2 && node->childs[0] == nullptr &&
@@ -701,21 +628,29 @@ private:
     cout << "(";
     for (int i = 0; i < num_childs - 1; ++i) {
       print(node->childs[i]);
-      cout << ":" << node->branch_length[i] << ",";
+      cout << ": " << node->branch_length[i] << ", ";
     }
     print(node->childs[num_childs - 1]);
-    cout << ":" << node->branch_length[num_childs - 1] << ")";
+    cout << ": " << node->branch_length[num_childs - 1] << ")";
   }
 };
 
 int main(int argc, char *argv[]) {
-  /*
+#if 0
+  // This is test case
+  // The tree should be the same as the tree on Wiki
+  // https://en.wikipedia.org/wiki/Neighbor_joining
+  // Convention: a = A0, b = A1, c = A2, d = A3, e = A4
+  // u,v are internal nodes, doesn't have name in Newick format
   const int num_seqs = 5;
   float a[num_seqs][num_seqs]{{INFINITY, 5.0f, 9.0f, 9.0f, 8.0f},
                               {5.0f, INFINITY, 10.0f, 10.0f, 9.0f},
                               {9.0f, 10.0f, INFINITY, 8.0f, 7.0f},
                               {9.0f, 10.0f, 8.0f, INFINITY, 3.0f},
-                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};*/
+                              {8.0f, 9.0f, 7.0f, 3.0f, INFINITY}};
+  NJ nj((float *)a, num_seqs);
+  nj.print();
+#else 
   if (argc != 2) {
     cout << "Usage: " << argv[0] << " number\n";
     exit(-1);
@@ -731,20 +666,12 @@ int main(int argc, char *argv[]) {
     a[i * num_seqs + i] = INFINITY;
   }
 
-  /*
-  for (int i = 0; i < num_seqs; ++i) {
-    for (int j = 0; j < num_seqs; ++j) {
-      cout << a[num_seqs * i + j] << ",\t";
-    }
-    cout << "\n";
-  }
-  cout << "--------------------------------------\n";*/
-
   assert(num_seqs > 2);
   double start = seconds();
-  NJ nj((float *)a, num_seqs);
+  NJ nj(a, num_seqs);
   double elapsed = seconds() - start;
   nj.print();
   cout << "Time to reconstruct the tree: " << elapsed << "\n";
+#endif
   return 0;
 }
