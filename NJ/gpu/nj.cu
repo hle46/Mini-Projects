@@ -636,7 +636,7 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-#if 0
+#if 1
   // This is test case
   // The tree should be the same as the tree on Wiki
   // https://en.wikipedia.org/wiki/Neighbor_joining

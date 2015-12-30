@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
   UPGMA upgma(a, num_seqs);
   double elapsed = seconds() - start;
   upgma.print();
-  cout << "Time to reconstruct the tree: " << elapsed << "\n";
+  //cout << "Time to reconstruct the tree: " << elapsed << "\n";
   delete a;
 #endif
   return 0;
