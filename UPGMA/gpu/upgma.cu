@@ -272,10 +272,12 @@ public:
         swap(idx1, idx2);
       }
 
+      // Update
       update<<<ceil(num_seqs / (float)BLOCK_SIZE), BLOCK_SIZE>>>(
           d_mat, num_seqs, idx1, idx2, nodes[idx1]->num_nodes,
           nodes[idx2]->num_nodes);
 
+      // Combine two nodes into one
       float length = val;
       root = new Node(-1, nodes[idx1]->num_nodes + nodes[idx2]->num_nodes,
                       length / 2, nodes[idx1], nodes[idx2],
@@ -373,7 +375,7 @@ int main(int argc, char *argv[]) {
   UPGMA upgma(a, num_seqs);
   double elapsed = seconds() - start;
   upgma.print();
-  cout << "Time to reconstruct the tree: " << elapsed << "\n";
+  //cout << "Time to reconstruct the tree: " << elapsed << "\n";
   delete a;
 #endif
   return 0;
